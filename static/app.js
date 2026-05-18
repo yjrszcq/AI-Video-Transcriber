@@ -59,6 +59,7 @@ class VideoTranscriber {
         preparing_whisper_model: 'Preparing Whisper model…',
         transcribing_audio:      'Transcribing audio…',
         optimizing_transcript:   'Optimizing transcript…',
+        generating_translation:  'Generating translation…',
         generating_summary:      'Generating summary…',
         detecting_subtitles:     'Detecting subtitles…',
         subtitle_found:          'Subtitles found! Processing text…',
@@ -120,6 +121,7 @@ class VideoTranscriber {
         preparing_whisper_model: '正在准备 Whisper 模型…',
         transcribing_audio:      '正在转录音频…',
         optimizing_transcript:   '正在优化转录文本…',
+        generating_translation:  '正在生成翻译…',
         generating_summary:      '正在生成摘要…',
         detecting_subtitles:     '正在检测字幕…',
         subtitle_found:          '字幕获取成功！正在处理文本…',
@@ -678,7 +680,7 @@ class VideoTranscriber {
     // ── 字幕路径（快速）──────────────────────────────────────
     if (m.includes('获取成功') || m.includes('subtitle found') || m.includes('字幕获取')) {
       this.sp.stage = 'subtitle_found';
-      stageCap = 54;
+      stageCap = 69;
       this.sp.target = stageCap;
       this._setModeBadge('subtitle');
     }
@@ -691,7 +693,7 @@ class VideoTranscriber {
     }
     else if (m.includes('读取文本') || (m.includes('read') && m.includes('text'))) {
       this.sp.stage = 'parsing';
-      stageCap = 54;
+      stageCap = 69;
       this.sp.target = stageCap;
       this._setModeBadge('whisper');
     }
@@ -721,7 +723,7 @@ class VideoTranscriber {
     // ── 其他阶段 ───────────────────────────────────────────────
     else if (m.includes('解析') || m.includes('pars')) {
       this.sp.stage = 'parsing';
-      stageCap = 54;
+      stageCap = 69;
       this.sp.target = stageCap;
     }
     else if (m.includes('下载') || m.includes('download')) {
@@ -731,12 +733,17 @@ class VideoTranscriber {
     }
     else if (m.includes('转录') || m.includes('transcrib') || m.includes('whisper')) {
       this.sp.stage = 'transcribing';
-      stageCap = 54;
+      stageCap = 69;
       this.sp.target = stageCap;
     }
     else if (m.includes('优化') || m.includes('optimiz')) {
       this.sp.stage = 'optimizing';
-      stageCap = 69;
+      stageCap = 79;
+      this.sp.target = stageCap;
+    }
+    else if (m.includes('翻译') || m.includes('translat')) {
+      this.sp.stage = 'translating';
+      stageCap = 89;
       this.sp.target = stageCap;
     }
     else if (m.includes('摘要') || m.includes('summary')) {
@@ -804,6 +811,7 @@ class VideoTranscriber {
       preparing_model:this.t('preparing_whisper_model'),
       transcribing:   this.t('transcribing_audio'),
       optimizing:     this.t('optimizing_transcript'),
+      translating:    this.t('generating_translation'),
       summarizing:    this.t('generating_summary'),
       completed:      this.t('completed'),
     };
@@ -828,6 +836,7 @@ class VideoTranscriber {
     else if (m.includes('解析') || m.includes('pars'))      label = this.t('parsing_video');
     else if (m.includes('转录') || m.includes('transcrib')) label = this.t('transcribing_audio');
     else if (m.includes('优化') || m.includes('optimiz'))   label = this.t('optimizing_transcript');
+    else if (m.includes('翻译') || m.includes('translat'))  label = this.t('generating_translation');
     else if (m.includes('摘要') || m.includes('summary'))   label = this.t('generating_summary');
     else if (m.includes('完成') || m.includes('complet'))   label = this.t('completed');
     else if (m.includes('准备') || m.includes('prepar'))    label = this.t('preparing');

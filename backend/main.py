@@ -184,7 +184,7 @@ async def _run_post_extract_pipeline(
         logger.error(f"保存原始转录Markdown失败: {e}")
 
     tasks[task_id].update({
-        "progress": 55,
+        "progress": 70,
         "message": "正在优化转录文本...",
     })
     save_tasks(tasks)
@@ -224,7 +224,7 @@ async def _run_post_extract_pipeline(
     if need_translation:
         logger.info(f"需要翻译: {detected_language} -> {summary_language}")
         tasks[task_id].update({
-            "progress": 70,
+            "progress": 80,
             "message": "正在生成翻译...",
         })
         save_tasks(tasks)
@@ -245,7 +245,7 @@ async def _run_post_extract_pipeline(
         )
 
     tasks[task_id].update({
-        "progress": 80,
+        "progress": 90,
         "message": "正在生成摘要...",
     })
     save_tasks(tasks)
