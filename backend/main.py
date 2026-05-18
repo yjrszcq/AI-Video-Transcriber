@@ -13,6 +13,7 @@ import json
 import re
 import openai
 
+from app_errors import AppError, http_error
 from video_processor import VideoProcessor
 from transcriber import Transcriber
 from summarizer import Summarizer
@@ -134,6 +135,24 @@ def _build_task_error_state(exc: Exception) -> dict:
     if isinstance(error_code, str) and error_code:
         error_state["error_code"] = error_code
     return error_state
+
+
+async def _parse_model_list(base_url: str, api_key: str) -> list:
+    """代理拉取模型列表，异常统一转为带错误码的 HTTP 错误。"""
+    if not api_key:
+        raise http_error(400, "api_key_required", "API key is required")
+
+    try:
+        client = openai.OpenAI(api_key=api_key, base_url=base_url or None)
+        resp = await asyncio.to_thread(client.models.list)
+        models = [{"id": m.id, "name": getattr(m, "name", m.id)} for m in resp.data]
+        models.sort(key=lambda x: x["id"])
+        return models
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取模型列表失败: {e}")
+        raise http_error(400, "models_fetch_failed", "获取模型列表失败，请检查 API 配置后重试")
 
 
 def _txt_to_raw_transcript_markdown(body: str) -> str:
@@ -350,18 +369,8 @@ async def list_models(
     effective_key = api_key or os.getenv("OPENAI_API_KEY", "")
     effective_url = base_url.rstrip("/") or os.getenv("OPENAI_BASE_URL") or None
 
-    if not effective_key:
-        raise HTTPException(status_code=400, detail="API key is required")
-
-    try:
-        client = openai.OpenAI(api_key=effective_key, base_url=effective_url)
-        resp   = await asyncio.to_thread(client.models.list)
-        models = [{"id": m.id, "name": getattr(m, "name", m.id)} for m in resp.data]
-        # Sort by id for readability
-        models.sort(key=lambda x: x["id"])
-        return {"data": models}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    models = await _parse_model_list(effective_url, effective_key)
+    return {"data": models}
 
 
 async def _enqueue_upload_job(
@@ -374,14 +383,11 @@ async def _enqueue_upload_job(
     """保存上传文件并入队 process_upload_task，返回 {task_id, message}。"""
     raw_name = file.filename or "upload.bin"
     if ".." in raw_name or "/" in raw_name or "\\" in raw_name:
-        raise HTTPException(status_code=400, detail="Invalid filename")
+        raise http_error(400, "invalid_filename", "文件名无效")
     safe_name = os.path.basename(raw_name)
     ext = Path(safe_name).suffix.lower()
     if ext not in UPLOAD_ALLOWED_EXT:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type: {ext or '(none)'}",
-        )
+        raise http_error(400, "upload_type", "不支持的文件类型")
 
     max_bytes = UPLOAD_MAX_MB * 1024 * 1024
     task_id = str(uuid.uuid4())
@@ -400,9 +406,10 @@ async def _enqueue_upload_job(
                     dest.unlink(missing_ok=True)
                 except Exception:
                     pass
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"File exceeds limit of {UPLOAD_MAX_MB} MB",
+                raise http_error(
+                    413,
+                    "upload_size_exceeded",
+                    f"文件超过 {UPLOAD_MAX_MB} MB 限制",
                 )
             out_f.write(chunk)
 
@@ -411,7 +418,7 @@ async def _enqueue_upload_job(
             dest.unlink(missing_ok=True)
         except Exception:
             pass
-        raise HTTPException(status_code=400, detail="Empty file")
+        raise http_error(400, "upload_empty", "文件为空")
 
     video_title = _sanitize_title_for_filename(Path(safe_name).stem) or "upload"
     source_label = f"upload:{safe_name}"
@@ -466,10 +473,7 @@ async def process_video(
 
         stripped = (url or "").strip()
         if not stripped:
-            raise HTTPException(
-                status_code=400,
-                detail="Provide a video URL or upload a file",
-            )
+            raise http_error(400, "input_required", "请提供视频链接或上传文件")
 
         url = stripped
 
@@ -508,7 +512,7 @@ async def process_video(
         raise
     except Exception as e:
         logger.error(f"处理视频时出错: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
+        raise http_error(500, "processing_generic", "处理请求失败，请稍后重试")
 
 async def process_video_task(
     task_id: str,
@@ -661,7 +665,7 @@ async def process_upload_task(
 
             body = saved_path.read_text(encoding="utf-8", errors="replace")
             if not body.strip():
-                raise Exception("文本文件为空")
+                raise AppError("empty_text_file", "文本文件为空")
             transcriber.last_detected_language = None
             raw_script = _txt_to_raw_transcript_markdown(body)
         else:
@@ -712,7 +716,7 @@ async def get_task_status(task_id: str):
     获取任务状态
     """
     if task_id not in tasks:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise http_error(404, "task_not_found", "任务不存在")
     
     return tasks[task_id]
 
@@ -722,7 +726,7 @@ async def task_stream(task_id: str):
     SSE实时任务状态流
     """
     if task_id not in tasks:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise http_error(404, "task_not_found", "任务不存在")
     
     async def event_generator():
         # 创建任务专用的队列
@@ -786,15 +790,15 @@ async def download_file(filename: str):
     try:
         # 检查文件扩展名安全性
         if not filename.endswith('.md'):
-            raise HTTPException(status_code=400, detail="仅支持下载.md文件")
+            raise http_error(400, "download_md_only", "仅支持下载 .md 文件")
         
         # 检查文件名格式（防止路径遍历攻击）
         if '..' in filename or '/' in filename or '\\' in filename:
-            raise HTTPException(status_code=400, detail="文件名格式无效")
+            raise http_error(400, "invalid_download_filename", "文件名格式无效")
             
         file_path = TEMP_DIR / filename
         if not file_path.exists():
-            raise HTTPException(status_code=404, detail="文件不存在")
+            raise http_error(404, "download_file_not_found", "文件不存在")
             
         return FileResponse(
             file_path,
@@ -805,7 +809,7 @@ async def download_file(filename: str):
         raise
     except Exception as e:
         logger.error(f"下载文件失败: {e}")
-        raise HTTPException(status_code=500, detail=f"下载失败: {str(e)}")
+        raise http_error(500, "download_request_failed", "下载失败，请稍后重试")
 
 
 @app.delete("/api/task/{task_id}")
@@ -814,7 +818,7 @@ async def delete_task(task_id: str):
     取消并删除任务
     """
     if task_id not in tasks:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise http_error(404, "task_not_found", "任务不存在")
     
     # 如果任务还在运行，先取消它
     if task_id in active_tasks:

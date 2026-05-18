@@ -9,6 +9,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from app_errors import AppError
+
 logger = logging.getLogger(__name__)
 
 class VideoProcessor:
@@ -50,10 +52,15 @@ class VideoProcessor:
         def _run():
             r = subprocess.run(cmd, capture_output=True, text=True)
             if r.returncode != 0:
-                err = (r.stderr or r.stdout or "").strip()
-                raise Exception(f"FFmpeg 转换失败: {err[:800]}")
+                raise AppError(
+                    "ffmpeg_conversion_failed",
+                    "音频格式转换失败，请尝试更换文件格式后重试",
+                )
             if not out_path.exists():
-                raise Exception("FFmpeg 未生成输出文件")
+                raise AppError(
+                    "ffmpeg_output_missing",
+                    "音频格式转换失败，未生成输出文件",
+                )
 
         await asyncio.to_thread(_run)
         return str(out_path)
@@ -378,7 +385,10 @@ class VideoProcessor:
                         audio_file = potential_file
                         break
                 else:
-                    raise Exception("未找到下载的音频文件")
+                    raise AppError(
+                        "downloaded_audio_not_found",
+                        "未找到下载的音频文件，请稍后重试",
+                    )
             
             # 校验时长，如果和源视频差异较大，尝试一次ffmpeg规范化重封装
             try:
@@ -409,9 +419,12 @@ class VideoProcessor:
             logger.info(f"音频文件已保存: {audio_file}")
             return audio_file, video_title
             
+        except AppError as e:
+            logger.error(f"下载视频失败: {str(e)}")
+            raise
         except Exception as e:
             logger.error(f"下载视频失败: {str(e)}")
-            raise Exception(f"下载视频失败: {str(e)}")
+            raise AppError("video_download_failed", "下载视频音频失败，请检查链接或稍后重试")
     
     def get_video_info(self, url: str) -> dict:
         """
@@ -436,4 +449,4 @@ class VideoProcessor:
                 }
         except Exception as e:
             logger.error(f"获取视频信息失败: {str(e)}")
-            raise Exception(f"获取视频信息失败: {str(e)}")
+            raise AppError("video_info_failed", "获取视频信息失败，请稍后重试")

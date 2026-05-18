@@ -69,9 +69,9 @@ class VideoTranscriber {
         mode_whisper:            '🎙 Whisper',
         completed:               'Done!',
         error_invalid_url:       'Please enter a valid video URL',
-        error_processing_failed: 'Processing failed: ',
+        error_processing_failed: 'Processing failed',
         error_no_download:       'No file available for download',
-        error_download_failed:   'Download failed: ',
+        error_download_failed:   'Download failed',
         fetching_models:         'Fetching models…',
         models_loaded:           (n) => `${n} models loaded`,
         models_error:            'Failed to fetch models',
@@ -84,9 +84,28 @@ class VideoTranscriber {
         error_processing_generic:'Processing error',
         error_task_status_failed:'Failed to get task status',
         error_unknown_download_type:'Unknown download type',
-        error_sync_failed:       'Sync failed: ',
+        error_sync_failed:       'Sync failed',
         error_sync_timeout:      'Sync timed out',
+        error_api_key_required:  'API key is required.',
+        error_models_fetch_failed:'Failed to fetch models. Check the API settings and try again.',
+        error_invalid_filename:  'Invalid filename.',
+        error_upload_size_exceeded:'File exceeds the upload size limit.',
+        error_input_required:    'Provide a video URL or upload a file.',
         error_no_speech_detected:'No transcribable speech was detected. The file may be too quiet, too short, or mostly silence/background noise. Please try a clearer audio file.',
+        error_empty_text_file:   'The text file is empty.',
+        error_task_not_found:    'Task not found.',
+        error_download_md_only:  'Only Markdown files can be downloaded.',
+        error_invalid_download_filename:'Invalid download filename.',
+        error_download_file_not_found:'The download file was not found.',
+        error_download_request_failed:'Download failed. Please try again later.',
+        error_whisper_model_load_failed:'Failed to load the Whisper model. Check the model cache or network and try again.',
+        error_audio_file_missing:'Audio file not found. Please upload the file again.',
+        error_transcription_failed:'Audio transcription failed. Please try again later.',
+        error_ffmpeg_conversion_failed:'Audio conversion failed. Try another file format and try again.',
+        error_ffmpeg_output_missing:'Audio conversion failed because no output file was generated.',
+        error_downloaded_audio_not_found:'Downloaded audio file was not found. Please try again later.',
+        error_video_download_failed:'Failed to download video audio. Check the link or try again later.',
+        error_video_info_failed:'Failed to retrieve video information. Please try again later.',
         ai_warning_title:        'AI fallback used',
         ai_warning_optimize_fallback: 'Transcript optimization failed; the original transcript was used.',
         ai_warning_translation_fallback: 'Translation failed; untranslated text was kept.',
@@ -137,9 +156,9 @@ class VideoTranscriber {
         mode_whisper:            '🎙 Whisper 模式',
         completed:               '处理完成！',
         error_invalid_url:       '请输入有效的视频链接',
-        error_processing_failed: '处理失败：',
+        error_processing_failed: '处理失败',
         error_no_download:       '没有可下载的文件',
-        error_download_failed:   '下载失败：',
+        error_download_failed:   '下载失败',
         fetching_models:         '正在获取模型列表…',
         models_loaded:           (n) => `已加载 ${n} 个模型`,
         models_error:            '获取模型失败',
@@ -152,9 +171,28 @@ class VideoTranscriber {
         error_processing_generic:'处理出错',
         error_task_status_failed:'获取任务状态失败',
         error_unknown_download_type:'未知的下载类型',
-        error_sync_failed:       '同步失败：',
+        error_sync_failed:       '同步失败',
         error_sync_timeout:      '同步超时',
+        error_api_key_required:  '必须填写 API Key。',
+        error_models_fetch_failed:'获取模型列表失败，请检查 API 配置后重试。',
+        error_invalid_filename:  '文件名无效。',
+        error_upload_size_exceeded:'文件超过上传大小限制。',
+        error_input_required:    '请提供视频链接或上传文件。',
         error_no_speech_detected:'未检测到可转录语音。该文件可能语音过短、音量过低，或主要是静音/背景音，请换一个更清晰的音频后重试。',
+        error_empty_text_file:   '文本文件为空。',
+        error_task_not_found:    '任务不存在。',
+        error_download_md_only:  '仅支持下载 Markdown 文件。',
+        error_invalid_download_filename:'下载文件名无效。',
+        error_download_file_not_found:'下载文件不存在。',
+        error_download_request_failed:'下载失败，请稍后重试。',
+        error_whisper_model_load_failed:'Whisper 模型加载失败，请检查模型缓存或网络后重试。',
+        error_audio_file_missing:'音频文件不存在，请重新上传后重试。',
+        error_transcription_failed:'音频转录失败，请稍后重试。',
+        error_ffmpeg_conversion_failed:'音频格式转换失败，请尝试更换文件格式后重试。',
+        error_ffmpeg_output_missing:'音频格式转换失败，未生成输出文件。',
+        error_downloaded_audio_not_found:'未找到下载的音频文件，请稍后重试。',
+        error_video_download_failed:'下载视频音频失败，请检查链接或稍后重试。',
+        error_video_info_failed:'获取视频信息失败，请稍后重试。',
         ai_warning_title:        'AI 功能已降级',
         ai_warning_optimize_fallback: '转录优化失败，已使用原始转录文本。',
         ai_warning_translation_fallback: '翻译失败，已保留未翻译文本。',
@@ -388,8 +426,7 @@ class VideoTranscriber {
 
       const resp = await fetch(`${this.apiBase}/models`, { method: 'POST', body: fd });
       if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.detail || `HTTP ${resp.status}`);
+        throw new Error(await this._getResponseErrorMessage(resp, 'models_error'));
       }
       const data = await resp.json();
       const models = data.data || data.models || [];
@@ -415,7 +452,7 @@ class VideoTranscriber {
 
     } catch (e) {
       console.warn('Model fetch error:', e);
-      this._setFetchStatus('err', this.t('models_error') + ': ' + e.message);
+      this._setFetchStatus('err', e.message || this.t('models_error'));
     } finally {
       this.fetchModelsBtn.disabled = false;
       this.fetchIcon.className = 'fas fa-sync-alt';
@@ -454,8 +491,7 @@ class VideoTranscriber {
 
       const resp = await fetch(`${this.apiBase}/process-video`, { method: 'POST', body: fd });
       if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.detail || this.t('error_request_failed'));
+        throw new Error(await this._getResponseErrorMessage(resp, 'error_request_failed'));
       }
 
       const data = await resp.json();
@@ -471,7 +507,7 @@ class VideoTranscriber {
       this._saveSettings();
 
     } catch (err) {
-      this._showError(this.t('error_processing_failed') + err.message);
+      this._showError(err.message || this.t('error_processing_generic'));
       this._setLoading(false);
       this._hideProgress();
     }
@@ -515,13 +551,7 @@ class VideoTranscriber {
 
       const resp = await fetch(`${this.apiBase}/process-video`, { method: 'POST', body: fd });
       if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        const d = err.detail;
-        const msg = typeof d === 'string'
-          ? d
-          : (Array.isArray(d) && d[0] && (d[0].msg || d[0].message))
-            || `HTTP ${resp.status}`;
-        throw new Error(msg);
+        throw new Error(await this._getResponseErrorMessage(resp, 'error_request_failed'));
       }
 
       const data = await resp.json();
@@ -537,7 +567,7 @@ class VideoTranscriber {
       this._saveSettings();
 
     } catch (err) {
-      this._showError(this.t('error_processing_failed') + err.message);
+      this._showError(err.message || this.t('error_processing_generic'));
       this._setLoading(false);
       this._hideProgress();
     }
@@ -645,13 +675,13 @@ class VideoTranscriber {
     const timeout = setTimeout(() => controller.abort(), this.statusPollTimeoutMs);
     try {
       const r = await fetch(`${this.apiBase}/task-status/${taskId}`, { signal: controller.signal });
-      if (!r.ok) throw new Error(this.t('error_task_status_failed'));
+      if (!r.ok) throw new Error(await this._getResponseErrorMessage(r, 'error_task_status_failed'));
       if (taskId !== this.currentTaskId || this.taskFinished) return;
       this._handleTaskUpdate(await r.json());
     } catch (e) {
       if (manual && !this.taskFinished && taskId === this.currentTaskId) {
         const msg = e.name === 'AbortError' ? this.t('error_sync_timeout') : e.message;
-        this._showError(this.t('error_sync_failed') + msg);
+        this._showError(msg || this.t('error_sync_failed'));
       }
       // Keep polling; transient network failures should not fail a running task.
     } finally {
@@ -937,6 +967,28 @@ class VideoTranscriber {
     return task?.error || task?.message || this.t('error_processing_generic');
   }
 
+  _getApiErrorMessage(detail, fallbackKey = 'error_request_failed') {
+    if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+      if (detail.error_code) {
+        const localized = this.t(`error_${detail.error_code}`, null);
+        if (localized) return localized;
+      }
+      if (typeof detail.message === 'string' && detail.message) return detail.message;
+      if (typeof detail.detail === 'string' && detail.detail) return detail.detail;
+    }
+    if (Array.isArray(detail) && detail.length) {
+      const first = detail[0];
+      if (first && typeof first === 'object') return first.msg || first.message || this.t(fallbackKey);
+    }
+    if (typeof detail === 'string' && detail) return detail;
+    return this.t(fallbackKey);
+  }
+
+  async _getResponseErrorMessage(resp, fallbackKey = 'error_request_failed') {
+    const payload = await resp.json().catch(() => ({}));
+    return this._getApiErrorMessage(payload.detail ?? payload, fallbackKey);
+  }
+
   /* ── Tabs ─────────────────────────────────────────────── */
   _switchTab(name) {
     this.tabBtns.forEach(b  => b.classList.toggle('active',  b.dataset.tab === name));
@@ -948,7 +1000,7 @@ class VideoTranscriber {
     if (!this.currentTaskId) { this._showError(this.t('error_no_download')); return; }
     try {
       const r = await fetch(`${this.apiBase}/task-status/${this.currentTaskId}`);
-      if (!r.ok) throw new Error(this.t('error_task_status_failed'));
+      if (!r.ok) throw new Error(await this._getResponseErrorMessage(r, 'error_task_status_failed'));
       const task = await r.json();
 
       let filename;
@@ -957,14 +1009,19 @@ class VideoTranscriber {
       else if (type === 'translation') filename = task.translation_path ? task.translation_path.split('/').pop() : `translation_${task.safe_title||'x'}_${task.short_id||'x'}.md`;
       else throw new Error(this.t('error_unknown_download_type'));
 
+      const fileResp = await fetch(`${this.apiBase}/download/${encodeURIComponent(filename)}`);
+      if (!fileResp.ok) throw new Error(await this._getResponseErrorMessage(fileResp, 'error_download_request_failed'));
+      const blob = await fileResp.blob();
+      const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = `${this.apiBase}/download/${encodeURIComponent(filename)}`;
+      a.href = blobUrl;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
     } catch (e) {
-      this._showError(this.t('error_download_failed') + e.message);
+      this._showError(e.message || this.t('error_download_failed'));
     }
   }
 

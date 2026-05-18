@@ -4,15 +4,9 @@ from faster_whisper import WhisperModel
 import logging
 from typing import Optional
 
+from app_errors import AppError
+
 logger = logging.getLogger(__name__)
-
-
-class TaskProcessingError(Exception):
-    """带错误码的任务异常，供前端做本地化展示。"""
-
-    def __init__(self, code: str, message: str):
-        super().__init__(message)
-        self.code = code
 
 
 class Transcriber:
@@ -43,7 +37,10 @@ class Transcriber:
                 logger.info("模型加载完成")
             except Exception as e:
                 logger.error(f"模型加载失败: {str(e)}")
-                raise Exception(f"模型加载失败: {str(e)}")
+                raise AppError(
+                    "whisper_model_load_failed",
+                    "Whisper 模型加载失败，请检查模型缓存或网络后重试",
+                )
 
     def is_model_loaded(self) -> bool:
         """返回 Whisper 模型是否已加载到当前进程。"""
@@ -68,7 +65,7 @@ class Transcriber:
         try:
             # 检查文件是否存在
             if not os.path.exists(audio_path):
-                raise Exception(f"音频文件不存在: {audio_path}")
+                raise AppError("audio_file_missing", "音频文件不存在，请重新上传后重试")
             
             logger.info(f"开始转录音频: {audio_path}")
             
@@ -121,7 +118,7 @@ class Transcriber:
                     )
 
                 if not plain_text:
-                    raise TaskProcessingError(
+                    raise AppError(
                         "no_speech_detected",
                         "未检测到可转录语音，请确认文件包含清晰语音或尝试提高音量后重试",
                     )
@@ -159,9 +156,12 @@ class Transcriber:
             
             return transcript_text
             
+        except AppError as e:
+            logger.error(f"转录失败: {str(e)}")
+            raise
         except Exception as e:
             logger.error(f"转录失败: {str(e)}")
-            raise Exception(f"转录失败: {str(e)}")
+            raise AppError("transcription_failed", "音频转录失败，请稍后重试")
     
     def _format_time(self, seconds: float) -> str:
         """
