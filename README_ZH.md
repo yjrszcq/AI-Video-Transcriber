@@ -213,9 +213,9 @@ AI-Video-Transcriber/
 |--------|------|--------|------|------|
 | `OPENAI_API_KEY` | API密钥（服务端默认值） | - | 否 | 可 |
 | `OPENAI_BASE_URL` | 自定义OpenAI端点 | - | 否 | 可 |
-| `OPENAI_OPTIMIZE_MODEL` | 文本处理模型配置 | - | 否 | 可 |
-| `OPENAI_SUMMARY_MODEL` | 摘要模型配置 | - | 否 | 可 |
-| `OPENAI_TRANSLATION_MODEL` | 翻译模型配置 | - | 否 | 可 |
+| `OPENAI_OPTIMIZE_MODEL` | 文本处理模型 | - | 否 | 可 |
+| `OPENAI_SUMMARY_MODEL` | 摘要模型 | - | 否 | 可 |
+| `OPENAI_TRANSLATION_MODEL` | 翻译模型 | - | 否 | 可 |
 | `WHISPER_MODEL_SIZE` | Whisper模型大小 | `base` | 否 | 否 |
 | `REPAIR_PRELOADED_HF_CACHE` | 用镜像内预置模型覆盖运行期同名缓存文件 | `false` | 否 | 否 |
 | `UPLOAD_MAX_MB` | 本地上传单文件大小上限（MB） | `200` | 否 | 否 |
