@@ -22,7 +22,8 @@ class VideoTranscriber {
     /* Smart progress simulation */
     this.sp = {
       enabled: false, current: 0, target: 15,
-      lastServer: 0, interval: null, startTime: null, stage: 'preparing'
+      lastServer: 0, interval: null, startTime: null, stage: 'preparing',
+      stageCap: 15
     };
 
     this.i18n = {
@@ -55,6 +56,7 @@ class VideoTranscriber {
         processing:              'Processing…',
         downloading_video:       'Downloading audio…',
         parsing_video:           'Parsing video info…',
+        preparing_whisper_model: 'Preparing Whisper model…',
         transcribing_audio:      'Transcribing audio…',
         optimizing_transcript:   'Optimizing transcript…',
         generating_summary:      'Generating summary…',
@@ -115,6 +117,7 @@ class VideoTranscriber {
         processing:              '处理中…',
         downloading_video:       '正在下载音频…',
         parsing_video:           '正在解析视频信息…',
+        preparing_whisper_model: '正在准备 Whisper 模型…',
         transcribing_audio:      '正在转录音频…',
         optimizing_transcript:   '正在优化转录文本…',
         generating_summary:      '正在生成摘要…',
@@ -670,47 +673,85 @@ class VideoTranscriber {
 
   _updateStage(pct, msg) {
     const m = (msg || '').toLowerCase();
+    let stageCap = 99;
 
     // ── 字幕路径（快速）──────────────────────────────────────
     if (m.includes('获取成功') || m.includes('subtitle found') || m.includes('字幕获取')) {
       this.sp.stage = 'subtitle_found';
-      this.sp.target = 55;
+      stageCap = 54;
+      this.sp.target = stageCap;
       this._setModeBadge('subtitle');
     }
     // ── 无字幕 → 音频下载路径（慢）────────────────────────────
     else if (m.includes('未找到字幕') || m.includes('no subtitle') || m.includes('下载视频音频') || m.includes('下载音频')) {
       this.sp.stage = 'downloading';
-      this.sp.target = 55;
+      stageCap = 34;
+      this.sp.target = stageCap;
       this._setModeBadge('whisper');
     }
     else if (m.includes('读取文本') || (m.includes('read') && m.includes('text'))) {
       this.sp.stage = 'parsing';
-      this.sp.target = 55;
+      stageCap = 54;
+      this.sp.target = stageCap;
+      this._setModeBadge('whisper');
+    }
+    else if ((m.includes('whisper') && (m.includes('模型') || m.includes('model'))) || m.includes('准备 whisper')) {
+      this.sp.stage = 'preparing_model';
+      stageCap = 39;
+      this.sp.target = stageCap;
       this._setModeBadge('whisper');
     }
     else if (m.includes('转换音频') || m.includes('准备转录')) {
       this.sp.stage = 'downloading';
-      this.sp.target = 55;
+      stageCap = 37;
+      this.sp.target = stageCap;
       this._setModeBadge('whisper');
     }
     else if (m.includes('上传') || m.includes('upload')) {
       this.sp.stage = 'preparing';
-      this.sp.target = 40;
+      stageCap = 14;
+      this.sp.target = stageCap;
     }
     // ── 通用字幕检测中 ─────────────────────────────────────────
     else if (m.includes('检测') && (m.includes('字幕') || m.includes('subtitle'))) {
       this.sp.stage = 'subtitle';
-      this.sp.target = 40;
+      stageCap = 14;
+      this.sp.target = stageCap;
     }
     // ── 其他阶段 ───────────────────────────────────────────────
-    else if (m.includes('解析') || m.includes('pars'))                     { this.sp.stage = 'parsing';       this.sp.target = 60; }
-    else if (m.includes('下载') || m.includes('download'))                 { this.sp.stage = 'downloading';   this.sp.target = 60; }
-    else if (m.includes('转录') || m.includes('transcrib') || m.includes('whisper')) { this.sp.stage = 'transcribing';  this.sp.target = 80; }
-    else if (m.includes('优化') || m.includes('optimiz'))                  { this.sp.stage = 'optimizing';    this.sp.target = 90; }
-    else if (m.includes('摘要') || m.includes('summary'))                  { this.sp.stage = 'summarizing';   this.sp.target = 95; }
-    else if (m.includes('完成') || m.includes('complet'))                  { this.sp.stage = 'completed';     this.sp.target = 100; }
+    else if (m.includes('解析') || m.includes('pars')) {
+      this.sp.stage = 'parsing';
+      stageCap = 54;
+      this.sp.target = stageCap;
+    }
+    else if (m.includes('下载') || m.includes('download')) {
+      this.sp.stage = 'downloading';
+      stageCap = 34;
+      this.sp.target = stageCap;
+    }
+    else if (m.includes('转录') || m.includes('transcrib') || m.includes('whisper')) {
+      this.sp.stage = 'transcribing';
+      stageCap = 54;
+      this.sp.target = stageCap;
+    }
+    else if (m.includes('优化') || m.includes('optimiz')) {
+      this.sp.stage = 'optimizing';
+      stageCap = 69;
+      this.sp.target = stageCap;
+    }
+    else if (m.includes('摘要') || m.includes('summary')) {
+      this.sp.stage = 'summarizing';
+      stageCap = 99;
+      this.sp.target = stageCap;
+    }
+    else if (m.includes('完成') || m.includes('complet')) {
+      this.sp.stage = 'completed';
+      stageCap = 100;
+      this.sp.target = 100;
+    }
 
-    if (pct >= this.sp.target) this.sp.target = Math.min(pct + 8, 99);
+    this.sp.stageCap = stageCap;
+    if (pct >= this.sp.target) this.sp.target = Math.min(pct + 8, stageCap);
   }
 
   _setModeBadge(mode) {
@@ -730,7 +771,7 @@ class VideoTranscriber {
 
   _initSP() {
     this.sp.enabled = false; this.sp.current = 0; this.sp.target = 15;
-    this.sp.lastServer = 0;  this.sp.startTime = Date.now(); this.sp.stage = 'preparing';
+    this.sp.lastServer = 0;  this.sp.startTime = Date.now(); this.sp.stage = 'preparing'; this.sp.stageCap = 15;
   }
   _startSP() {
     if (this.sp.interval) clearInterval(this.sp.interval);
@@ -760,6 +801,7 @@ class VideoTranscriber {
       subtitle_found: this.t('subtitle_found'),
       downloading:    this.t('downloading_video'),
       parsing:        this.t('parsing_video'),
+      preparing_model:this.t('preparing_whisper_model'),
       transcribing:   this.t('transcribing_audio'),
       optimizing:     this.t('optimizing_transcript'),
       summarizing:    this.t('generating_summary'),
@@ -781,6 +823,7 @@ class VideoTranscriber {
     else if (m.includes('未找到字幕') || m.includes('no subtitle'))         label = this.t('no_subtitle');
     else if (m.includes('检测') && (m.includes('字幕') || m.includes('subtitle'))) label = this.t('detecting_subtitles');
     // ── Audio / Whisper path ────────────────────────────────────
+    else if ((m.includes('whisper') && (m.includes('模型') || m.includes('model'))) || m.includes('准备 whisper')) label = this.t('preparing_whisper_model');
     else if (m.includes('下载') || m.includes('download'))  label = this.t('downloading_video');
     else if (m.includes('解析') || m.includes('pars'))      label = this.t('parsing_video');
     else if (m.includes('转录') || m.includes('transcrib')) label = this.t('transcribing_audio');

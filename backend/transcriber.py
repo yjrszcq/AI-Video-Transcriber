@@ -35,6 +35,15 @@ class Transcriber:
             except Exception as e:
                 logger.error(f"模型加载失败: {str(e)}")
                 raise Exception(f"模型加载失败: {str(e)}")
+
+    def is_model_loaded(self) -> bool:
+        """返回 Whisper 模型是否已加载到当前进程。"""
+        return self.model is not None
+
+    async def ensure_model_loaded(self):
+        """在线程中准备模型，避免首次下载/加载阻塞事件循环。"""
+        import asyncio
+        await asyncio.to_thread(self._load_model)
     
     async def transcribe(self, audio_path: str, language: Optional[str] = None) -> str:
         """

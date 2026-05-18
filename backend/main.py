@@ -137,6 +137,25 @@ def _txt_to_raw_transcript_markdown(body: str) -> str:
     ])
 
 
+async def _prepare_whisper_transcription(task_id: str) -> None:
+    """准备 Whisper 模型，并把模型准备/转录阶段明确广播给前端。"""
+    if not transcriber.is_model_loaded():
+        tasks[task_id].update({
+            "progress": 38,
+            "message": "正在准备 Whisper 模型（首次运行可能需要下载）...",
+        })
+        save_tasks(tasks)
+        await broadcast_task_update(task_id, tasks[task_id])
+        await transcriber.ensure_model_loaded()
+
+    tasks[task_id].update({
+        "progress": 40,
+        "message": "正在转录音频（Whisper）...",
+    })
+    save_tasks(tasks)
+    await broadcast_task_update(task_id, tasks[task_id])
+
+
 async def _run_post_extract_pipeline(
     task_id: str,
     raw_script: str,
@@ -531,13 +550,7 @@ async def process_video_task(
             save_tasks(tasks)
             await broadcast_task_update(task_id, tasks[task_id])
 
-            tasks[task_id].update({
-                "progress": 40,
-                "message": "正在转录音频（Whisper）..."
-            })
-            save_tasks(tasks)
-            await broadcast_task_update(task_id, tasks[task_id])
-
+            await _prepare_whisper_transcription(task_id)
             raw_script = await transcriber.transcribe(audio_path)
 
         await _run_post_extract_pipeline(
@@ -643,13 +656,7 @@ async def process_upload_task(
             save_tasks(tasks)
             await broadcast_task_update(task_id, tasks[task_id])
 
-            tasks[task_id].update({
-                "progress": 40,
-                "message": "正在转录音频（Whisper）...",
-            })
-            save_tasks(tasks)
-            await broadcast_task_update(task_id, tasks[task_id])
-
+            await _prepare_whisper_transcription(task_id)
             raw_script = await transcriber.transcribe(audio_path)
 
         await _run_post_extract_pipeline(
