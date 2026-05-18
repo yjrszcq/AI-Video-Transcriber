@@ -1,4 +1,5 @@
 import os
+import threading
 from faster_whisper import WhisperModel
 import logging
 from typing import Optional
@@ -17,11 +18,16 @@ class Transcriber:
         """
         self.model_size = model_size
         self.model = None
+        self._model_lock = threading.Lock()
         self.last_detected_language = None
         
     def _load_model(self):
         """延迟加载模型"""
-        if self.model is None:
+        if self.model is not None:
+            return
+        with self._model_lock:
+            if self.model is not None:
+                return
             logger.info(f"正在加载Whisper模型: {self.model_size}")
             try:
                 self.model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
@@ -46,15 +52,13 @@ class Transcriber:
             if not os.path.exists(audio_path):
                 raise Exception(f"音频文件不存在: {audio_path}")
             
-            # 加载模型
-            self._load_model()
-            
             logger.info(f"开始转录音频: {audio_path}")
             
-            # 直接调用会阻塞事件循环；放入线程避免阻塞
+            # 模型首次下载/加载与 segments 迭代都会阻塞，整体放入线程避免卡住状态查询。
             import asyncio
             def _do_transcribe():
-                return self.model.transcribe(
+                self._load_model()
+                segments, info = self.model.transcribe(
                     audio_path,
                     language=language,
                     beam_size=5,
@@ -72,35 +76,34 @@ class Transcriber:
                     # 避免错误累积导致的连环重复
                     condition_on_previous_text=False
                 )
-            segments, info = await asyncio.to_thread(_do_transcribe)
-            
-            detected_language = info.language
+                detected_language = info.language
+                logger.info(f"检测到的语言: {detected_language}")
+                logger.info(f"语言检测概率: {info.language_probability:.2f}")
+
+                transcript_lines = [
+                    "# Video Transcription",
+                    "",
+                    f"**Detected Language:** {detected_language}",
+                    f"**Language Probability:** {info.language_probability:.2f}",
+                    "",
+                    "## Transcription Content",
+                    "",
+                ]
+
+                for segment in segments:
+                    start_time = self._format_time(segment.start)
+                    end_time = self._format_time(segment.end)
+                    text = segment.text.strip()
+
+                    transcript_lines.append(f"**[{start_time} - {end_time}]**")
+                    transcript_lines.append("")
+                    transcript_lines.append(text)
+                    transcript_lines.append("")
+
+                return detected_language, "\n".join(transcript_lines)
+
+            detected_language, transcript_text = await asyncio.to_thread(_do_transcribe)
             self.last_detected_language = detected_language  # 保存检测到的语言
-            logger.info(f"检测到的语言: {detected_language}")
-            logger.info(f"语言检测概率: {info.language_probability:.2f}")
-            
-            # 组装转录结果
-            transcript_lines = []
-            transcript_lines.append("# Video Transcription")
-            transcript_lines.append("")
-            transcript_lines.append(f"**Detected Language:** {detected_language}")
-            transcript_lines.append(f"**Language Probability:** {info.language_probability:.2f}")
-            transcript_lines.append("")
-            transcript_lines.append("## Transcription Content")
-            transcript_lines.append("")
-            
-            # 添加时间戳和文本
-            for segment in segments:
-                start_time = self._format_time(segment.start)
-                end_time = self._format_time(segment.end)
-                text = segment.text.strip()
-                
-                transcript_lines.append(f"**[{start_time} - {end_time}]**")
-                transcript_lines.append("")
-                transcript_lines.append(text)
-                transcript_lines.append("")
-            
-            transcript_text = "\n".join(transcript_lines)
             logger.info("转录完成")
             
             return transcript_text
