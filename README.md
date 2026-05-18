@@ -49,21 +49,48 @@ chmod +x install.sh
 #### Method 2: Docker
 
 ```bash
-# Clone the repository
-git clone https://github.com/wendy7756/AI-Video-Transcriber.git
-cd AI-Video-Transcriber
+# Minimal Docker run from Docker Hub
+docker run -d --name ai-video-transcriber --restart unless-stopped -p 8000:8000 szcq/ai-video-transcriber:latest
+```
 
-# Using Docker Compose (easiest)
+Detailed `docker-compose.yml` example using the Docker Hub image:
+
+```yaml
+services:
+  ai-video-transcriber:
+    image: szcq/ai-video-transcriber:latest
+    container_name: ai-video-transcriber
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_OPTIMIZE_MODEL: ${OPENAI_OPTIMIZE_MODEL:-gpt-4o-mini}
+      OPENAI_SUMMARY_MODEL: ${OPENAI_SUMMARY_MODEL:-gpt-4o}
+      OPENAI_TRANSLATION_MODEL: ${OPENAI_TRANSLATION_MODEL:-gpt-4o-mini}
+      WHISPER_MODEL_SIZE: ${WHISPER_MODEL_SIZE:-base}
+      UPLOAD_MAX_MB: ${UPLOAD_MAX_MB:-200}
+      SSE_HEARTBEAT_SECONDS: ${SSE_HEARTBEAT_SECONDS:-10}
+      REPAIR_PRELOADED_HF_CACHE: ${REPAIR_PRELOADED_HF_CACHE:-false}
+      HOST: ${HOST:-0.0.0.0}
+      PORT: ${PORT:-8000}
+    volumes:
+      - ./models/huggingface:/data/huggingface
+      # - ./temp:/app/temp
+    restart: unless-stopped
+```
+
+```bash
 cp .env.example .env
-# Edit .env file if you want server-side defaults (optional)
-docker-compose up -d
-
-# Or using Docker directly
-docker build -t ai-video-transcriber .
-docker run -p 8000:8000 --env-file .env ai-video-transcriber
+docker compose up -d
 ```
 
 Docker Compose stores runtime Whisper / Hugging Face cache files in `./models/huggingface`. Images that preload Whisper models keep those files in `/opt/preloaded-hf-cache`; on startup, the entrypoint merges missing preloaded cache files into the mounted runtime cache without overwriting existing files. Set `REPAIR_PRELOADED_HF_CACHE=true` to overwrite matching runtime cache files from the image when you need to repair suspected corrupted preloaded-model cache files.
+
+Published Docker Hub tags from the workflow are:
+- `szcq/ai-video-transcriber:latest` / `:standard` — no preloaded Whisper model
+- `szcq/ai-video-transcriber:with-base` — preloads the `base` model
+- `szcq/ai-video-transcriber:with-all-whisper` — preloads common Whisper models
 
 The image uses **Python 3.12** (Debian Bookworm), upgrades `pip`/`setuptools`/`wheel`, then installs from `requirements.txt` — same version constraints as a fresh local venv on a current Python.
 
@@ -240,24 +267,18 @@ A: Docker provides the easiest deployment method:
 
 **Quick Start:**
 ```bash
-# Clone and setup
-git clone https://github.com/wendy7756/AI-Video-Transcriber.git
-cd AI-Video-Transcriber
+# Minimal run from Docker Hub
+docker run -d --name ai-video-transcriber --restart unless-stopped -p 8000:8000 szcq/ai-video-transcriber:latest
+
+# Or use the detailed docker-compose config from the Quick Start section
 cp .env.example .env
-# Edit .env file to set server-side defaults (optional)
-
-# Start with Docker Compose (recommended)
-docker-compose up -d
-
-# Or build and run manually
-docker build -t ai-video-transcriber .
-docker run -p 8000:8000 --env-file .env ai-video-transcriber
+docker compose up -d
 ```
 
 **Common Docker Issues:**
 - **Port conflict**: Change port mapping `-p 8001:8000` if 8000 is occupied
 - **Permission denied**: Ensure Docker Desktop is running and you have proper permissions
-- **Build fails**: Check disk space (need ~2GB free) and network connection
+- **Image pull fails**: Check network connection and Docker Hub access
 - **Container won't start**: Check Docker logs with `docker logs <container_id>`
 
 **Docker Commands:**
@@ -266,13 +287,14 @@ docker run -p 8000:8000 --env-file .env ai-video-transcriber
 docker ps
 
 # Check container logs
-docker logs ai-video-transcriber-ai-video-transcriber-1
+docker logs ai-video-transcriber
 
 # Stop service
-docker-compose down
+docker compose down
 
-# Rebuild after changes
-docker-compose build --no-cache
+# Pull the latest image and restart
+docker compose pull
+docker compose up -d
 ```
 
 ### Q: What are the memory requirements?
@@ -300,10 +322,10 @@ A: Memory usage varies depending on the deployment method and workload:
 WHISPER_MODEL_SIZE=tiny  # or base
 
 # For Docker, limit container memory if needed
-docker run -m 1g -p 8000:8000 --env-file .env ai-video-transcriber
+docker run -m 1g --restart unless-stopped -p 8000:8000 szcq/ai-video-transcriber:latest
 
 # Monitor memory usage
-docker stats ai-video-transcriber-ai-video-transcriber-1
+docker stats ai-video-transcriber
 ```
 
 ### Q: Network connection errors or timeouts?

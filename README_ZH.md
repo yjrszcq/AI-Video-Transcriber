@@ -48,21 +48,48 @@ chmod +x install.sh
 #### 方法二：Docker部署
 
 ```bash
-# 克隆项目
-git clone https://github.com/wendy7756/AI-Video-Transcriber.git
-cd AI-Video-Transcriber
+# 使用 Docker Hub 镜像的最简 docker run
+docker run -d --name ai-video-transcriber --restart unless-stopped -p 8000:8000 szcq/ai-video-transcriber:latest
+```
 
-# 使用Docker Compose（最简单）
+使用 Docker Hub 镜像的详细 `docker-compose.yml` 示例：
+
+```yaml
+services:
+  ai-video-transcriber:
+    image: szcq/ai-video-transcriber:latest
+    container_name: ai-video-transcriber
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_OPTIMIZE_MODEL: ${OPENAI_OPTIMIZE_MODEL:-gpt-4o-mini}
+      OPENAI_SUMMARY_MODEL: ${OPENAI_SUMMARY_MODEL:-gpt-4o}
+      OPENAI_TRANSLATION_MODEL: ${OPENAI_TRANSLATION_MODEL:-gpt-4o-mini}
+      WHISPER_MODEL_SIZE: ${WHISPER_MODEL_SIZE:-base}
+      UPLOAD_MAX_MB: ${UPLOAD_MAX_MB:-200}
+      SSE_HEARTBEAT_SECONDS: ${SSE_HEARTBEAT_SECONDS:-10}
+      REPAIR_PRELOADED_HF_CACHE: ${REPAIR_PRELOADED_HF_CACHE:-false}
+      HOST: ${HOST:-0.0.0.0}
+      PORT: ${PORT:-8000}
+    volumes:
+      - ./models/huggingface:/data/huggingface
+      # - ./temp:/app/temp
+    restart: unless-stopped
+```
+
+```bash
 cp .env.example .env
-# 编辑.env文件设置服务端默认值（可选）
-docker-compose up -d
-
-# 或者直接使用Docker
-docker build -t ai-video-transcriber .
-docker run -p 8000:8000 --env-file .env ai-video-transcriber
+docker compose up -d
 ```
 
 Docker Compose 会把运行期 Whisper / Hugging Face 缓存保存到 `./models/huggingface`。预下载模型的镜像会把模型保存在 `/opt/preloaded-hf-cache`；启动时，入口脚本会把缺失的预置缓存文件合并到挂载的运行期缓存中，且不会覆盖已有文件。如需修复疑似损坏的预置模型缓存，可设置 `REPAIR_PRELOADED_HF_CACHE=true`，用镜像内预置模型覆盖运行期同名缓存文件。
+
+GitHub 工作流当前发布的 Docker Hub 标签有：
+- `szcq/ai-video-transcriber:latest` / `:standard`：不预下载 Whisper 模型
+- `szcq/ai-video-transcriber:with-base`：预下载 `base` 模型
+- `szcq/ai-video-transcriber:with-all-whisper`：预下载常用 Whisper 模型
 
 镜像基于 **Python 3.12**（Debian Bookworm），构建时会先升级 `pip` / `setuptools` / `wheel`，再按 `requirements.txt` 安装，与本地在新版 Python 下创建虚拟环境后 `pip install -r requirements.txt` 的解析方式一致。
 
@@ -240,24 +267,18 @@ A: Docker提供了最简单的部署方式：
 
 **快速开始：**
 ```bash
-# 克隆和配置
-git clone https://github.com/wendy7756/AI-Video-Transcriber.git
-cd AI-Video-Transcriber
+# 使用 Docker Hub 镜像的最简运行方式
+docker run -d --name ai-video-transcriber --restart unless-stopped -p 8000:8000 szcq/ai-video-transcriber:latest
+
+# 或使用上文的详细 docker-compose 配置
 cp .env.example .env
-# 编辑.env文件设置服务端默认值（可选）
-
-# 使用Docker Compose启动（推荐）
-docker-compose up -d
-
-# 或手动构建运行
-docker build -t ai-video-transcriber .
-docker run -p 8000:8000 --env-file .env ai-video-transcriber
+docker compose up -d
 ```
 
 **常见Docker问题：**
 - **端口冲突**：如果8000端口被占用，可改用 `-p 8001:8000`
 - **权限拒绝**：确保Docker Desktop正在运行且有适当权限
-- **构建失败**：检查磁盘空间（需要约2GB空闲空间）和网络连接
+- **镜像拉取失败**：检查网络连接以及 Docker Hub 是否可访问
 - **容器无法启动**：通过 `docker logs <容器ID>` 查看具体错误日志
 
 **Docker常用命令：**
@@ -266,13 +287,14 @@ docker run -p 8000:8000 --env-file .env ai-video-transcriber
 docker ps
 
 # 检查容器日志
-docker logs ai-video-transcriber-ai-video-transcriber-1
+docker logs ai-video-transcriber
 
 # 停止服务
-docker-compose down
+docker compose down
 
-# 修改后重新构建
-docker-compose build --no-cache
+# 拉取最新镜像并重启
+docker compose pull
+docker compose up -d
 ```
 
 ### Q: 内存需求是多少？
@@ -300,10 +322,10 @@ A: 内存使用量根据部署方式和工作负载而有所不同：
 WHISPER_MODEL_SIZE=tiny  # 或 base
 
 # Docker部署时可限制容器内存
-docker run -m 1g -p 8000:8000 --env-file .env ai-video-transcriber
+docker run -m 1g --restart unless-stopped -p 8000:8000 szcq/ai-video-transcriber:latest
 
 # 监控内存使用情况
-docker stats ai-video-transcriber-ai-video-transcriber-1
+docker stats ai-video-transcriber
 ```
 
 ### Q: 网络连接错误或超时怎么办？
