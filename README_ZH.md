@@ -60,22 +60,20 @@ services:
     image: szcq/ai-video-transcriber:latest
     container_name: ai-video-transcriber
     ports:
-      - "${PORT:-8000}:${PORT:-8000}"
+      - "${PORT:-8000}:8000"
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
-      OPENAI_OPTIMIZE_MODEL: ${OPENAI_OPTIMIZE_MODEL:-gpt-4o-mini}
-      OPENAI_SUMMARY_MODEL: ${OPENAI_SUMMARY_MODEL:-gpt-4o}
-      OPENAI_TRANSLATION_MODEL: ${OPENAI_TRANSLATION_MODEL:-gpt-4o-mini}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_OPTIMIZE_MODEL: ${OPENAI_OPTIMIZE_MODEL:-}
+      OPENAI_SUMMARY_MODEL: ${OPENAI_SUMMARY_MODEL:-}
+      OPENAI_TRANSLATION_MODEL: ${OPENAI_TRANSLATION_MODEL:-}
       WHISPER_MODEL_SIZE: ${WHISPER_MODEL_SIZE:-base}
       UPLOAD_MAX_MB: ${UPLOAD_MAX_MB:-200}
       SSE_HEARTBEAT_SECONDS: ${SSE_HEARTBEAT_SECONDS:-10}
       REPAIR_PRELOADED_HF_CACHE: ${REPAIR_PRELOADED_HF_CACHE:-false}
-      HOST: ${HOST:-0.0.0.0}
-      PORT: ${PORT:-8000}
     volumes:
       - ./models/huggingface:/data/huggingface
-      # - ./temp:/app/temp
+      - ./temp:/app/temp
     restart: unless-stopped
 ```
 
