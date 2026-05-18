@@ -62,6 +62,8 @@ docker build -t ai-video-transcriber .
 docker run -p 8000:8000 --env-file .env ai-video-transcriber
 ```
 
+Docker Compose 会把运行期 Whisper / Hugging Face 缓存保存到 `./models/huggingface`。预下载模型的镜像会把模型保存在 `/opt/preloaded-hf-cache`；首次启动时，如果挂载的运行期缓存为空，入口脚本会把预置模型复制进去。
+
 镜像基于 **Python 3.12**（Debian Bookworm），构建时会先升级 `pip` / `setuptools` / `wheel`，再按 `requirements.txt` 安装，与本地在新版 Python 下创建虚拟环境后 `pip install -r requirements.txt` 的解析方式一致。
 
 #### 方法三：手动安装

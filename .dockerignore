@@ -18,6 +18,10 @@ temp/
 *.tmp
 *.log
 
+# 模型缓存
+models/
+.cache/
+
 # IDE相关
 .vscode/
 .idea/

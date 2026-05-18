@@ -18,9 +18,10 @@ RUN python -m pip install --upgrade pip setuptools wheel \
     && pip install --no-cache-dir -r requirements.txt
 
 # Hugging Face / faster-whisper 缓存目录
-# 构建时预下载的模型会保存在镜像里的这个目录
-ENV HF_HOME=/root/.cache/huggingface
-ENV HUGGINGFACE_HUB_CACHE=/root/.cache/huggingface/hub
+# 构建期预下载模型保存在镜像内目录，运行期缓存使用可挂载目录。
+ENV PRELOADED_HF_HOME=/opt/preloaded-hf-cache
+ENV HF_HOME=/data/huggingface
+ENV HUGGINGFACE_HUB_CACHE=/data/huggingface/hub
 
 # 是否在镜像构建阶段预下载 Whisper 模型
 # none = 不下载模型，即 standard/latest
@@ -29,8 +30,10 @@ ENV HUGGINGFACE_HUB_CACHE=/root/.cache/huggingface/hub
 ARG PRELOAD_WHISPER_MODELS=none
 
 RUN if [ "$PRELOAD_WHISPER_MODELS" = "base" ]; then \
+      HF_HOME="$PRELOADED_HF_HOME" HUGGINGFACE_HUB_CACHE="$PRELOADED_HF_HOME/hub" \
       python -c "from faster_whisper.utils import download_model; download_model('base')"; \
     elif [ "$PRELOAD_WHISPER_MODELS" = "all" ]; then \
+      HF_HOME="$PRELOADED_HF_HOME" HUGGINGFACE_HUB_CACHE="$PRELOADED_HF_HOME/hub" \
       python -c "from faster_whisper.utils import download_model; [download_model(m) for m in ['tiny','base','small','medium','large-v3']]"; \
     else \
       echo 'Skip Whisper model preload'; \
@@ -39,8 +42,8 @@ RUN if [ "$PRELOAD_WHISPER_MODELS" = "base" ]; then \
 # 复制项目文件
 COPY . .
 
-# 创建临时目录
-RUN mkdir -p temp
+# 创建临时目录和运行期缓存目录
+RUN mkdir -p temp "$HF_HOME"
 
 # 设置环境变量
 ENV HOST=0.0.0.0
@@ -51,6 +54,10 @@ ENV SSE_HEARTBEAT_SECONDS=10
 
 # 暴露端口
 EXPOSE 8000
+
+# 首次启动时，如果运行期缓存为空，则复制镜像内预下载模型。
+RUN chmod +x docker-entrypoint.sh
+ENTRYPOINT ["./docker-entrypoint.sh"]
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
