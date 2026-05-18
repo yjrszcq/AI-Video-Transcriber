@@ -37,8 +37,8 @@ jobs:
           build-args: |
             PRELOAD_WHISPER_MODELS=none
           tags: |
-            ${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:standard
+            ${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:latest
 
   build-with-base:
     runs-on: ubuntu-latest
