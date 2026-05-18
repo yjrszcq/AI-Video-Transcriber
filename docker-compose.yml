@@ -1,6 +1,8 @@
 services:
   ai-video-transcriber:
     build: .
+    image: ai-video-transcriber:latest
+    container_name: ai-video-transcriber
     ports:
       - "8000:8000"
     environment:
