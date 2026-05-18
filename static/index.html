@@ -404,11 +404,41 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 12px;
       font-size: 12.5px;
       color: var(--text-muted);
       margin-bottom: 8px;
     }
     .prog-top-left { display: flex; align-items: center; gap: 8px; }
+    .prog-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .btn-sync {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border: 1px solid var(--border-light);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text-muted);
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color .2s, color .2s, background .2s, opacity .2s;
+    }
+    .btn-sync:hover,
+    .btn-sync:focus-visible {
+      outline: none;
+      border-color: var(--accent-dim);
+      color: var(--accent-text);
+      background: var(--surface-3);
+    }
+    .btn-sync:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-sync.syncing i { animation: spin .7s linear infinite; }
     .mode-badge {
       display: none;
       font-size: 10.5px;
@@ -703,7 +733,13 @@
           <span data-i18n="processing_progress">Processing</span>
           <span class="mode-badge" id="modeBadge"></span>
         </div>
-        <span id="progressStatus">0%</span>
+        <div class="prog-actions">
+          <span id="progressStatus">0%</span>
+          <button type="button" class="btn-sync" id="syncStatusBtn" aria-label="Sync progress" data-i18n-aria-label="sync_progress">
+            <i class="fas fa-sync-alt"></i>
+            <span data-i18n="sync_progress">Sync progress</span>
+          </button>
+        </div>
       </div>
       <div class="prog-bar">
         <div class="prog-fill" id="progressFill"></div>
@@ -758,6 +794,6 @@
   </div>
 </main>
 
-<script src="/static/app.js?v=20260518d"></script>
+<script src="/static/app.js?v=20260518i"></script>
 </body>
 </html>

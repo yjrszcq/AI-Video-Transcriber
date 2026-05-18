@@ -11,7 +11,8 @@ class VideoTranscriber {
     this.sseReconnectTimer = null;
     this.statusPollTimer = null;
     this.statusPollInFlight = false;
-    this.statusPollIntervalMs = 5000;
+    this.statusPollIntervalMs = 15000;
+    this.statusPollTimeoutMs = 10000;
     this.taskFinished = false;
     this.sseRetryCount = 0;
 
@@ -37,6 +38,8 @@ class VideoTranscriber {
         model_default:           '— use server default —',
         summary_language:        'Summary Language',
         processing_progress:     'Processing',
+        sync_progress:           'Sync progress',
+        syncing_progress:        'Syncing…',
         preparing:               'Preparing…',
         transcript_text:         'Transcript',
         intelligent_summary:     'AI Summary',
@@ -74,6 +77,8 @@ class VideoTranscriber {
         error_processing_generic:'Processing error',
         error_task_status_failed:'Failed to get task status',
         error_unknown_download_type:'Unknown download type',
+        error_sync_failed:       'Sync failed: ',
+        error_sync_timeout:      'Sync timed out',
         error_upload_type:       'Unsupported file type',
         error_upload_empty:      'File is empty',
         error_upload_size:       (mb) => `File exceeds ${mb} MB limit`,
@@ -93,6 +98,8 @@ class VideoTranscriber {
         model_default:           '— 使用服务器默认 —',
         summary_language:        '摘要语言',
         processing_progress:     '处理进度',
+        sync_progress:           '同步进度',
+        syncing_progress:        '同步中…',
         preparing:               '准备中…',
         transcript_text:         '转录文本',
         intelligent_summary:     '智能摘要',
@@ -130,6 +137,8 @@ class VideoTranscriber {
         error_processing_generic:'处理出错',
         error_task_status_failed:'获取任务状态失败',
         error_unknown_download_type:'未知的下载类型',
+        error_sync_failed:       '同步失败：',
+        error_sync_timeout:      '同步超时',
         error_upload_type:       '不支持的文件类型',
         error_upload_empty:      '文件为空',
         error_upload_size:       (mb) => `文件超过 ${mb} MB 限制`,
@@ -155,6 +164,7 @@ class VideoTranscriber {
     this.emptyState         = document.getElementById('emptyState');
     this.progressPanel      = document.getElementById('progressPanel');
     this.modeBadge          = document.getElementById('modeBadge');
+    this.syncStatusBtn      = document.getElementById('syncStatusBtn');
     this.progressStatus     = document.getElementById('progressStatus');
     this.progressFill       = document.getElementById('progressFill');
     this.progressMessage    = document.getElementById('progressMessage');
@@ -222,6 +232,9 @@ class VideoTranscriber {
     this.dlScript.addEventListener('click',      () => this._downloadFile('script'));
     this.dlTranslation.addEventListener('click', () => this._downloadFile('translation'));
     this.dlSummary.addEventListener('click',     () => this._downloadFile('summary'));
+    if (this.syncStatusBtn) {
+      this.syncStatusBtn.addEventListener('click', () => this._pollTaskStatus(true));
+    }
 
     if (this.uploadPickBtn && this.fileInput && this.uploadZone) {
       this.uploadPickBtn.addEventListener('click', (e) => {
@@ -577,20 +590,28 @@ class VideoTranscriber {
     this.statusPollInFlight = false;
   }
 
-  async _pollTaskStatus() {
+  async _pollTaskStatus(manual = false) {
     if (!this.currentTaskId || this.taskFinished || this.statusPollInFlight) return;
     this.statusPollInFlight = true;
+    if (manual) this._setSyncing(true);
     const taskId = this.currentTaskId;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.statusPollTimeoutMs);
     try {
-      const r = await fetch(`${this.apiBase}/task-status/${taskId}`);
-      if (r.ok) {
-        if (taskId !== this.currentTaskId || this.taskFinished) return;
-        this._handleTaskUpdate(await r.json());
+      const r = await fetch(`${this.apiBase}/task-status/${taskId}`, { signal: controller.signal });
+      if (!r.ok) throw new Error(this.t('error_task_status_failed'));
+      if (taskId !== this.currentTaskId || this.taskFinished) return;
+      this._handleTaskUpdate(await r.json());
+    } catch (e) {
+      if (manual) {
+        const msg = e.name === 'AbortError' ? this.t('error_sync_timeout') : e.message;
+        this._showError(this.t('error_sync_failed') + msg);
       }
-    } catch (_) {
       // Keep polling; transient network failures should not fail a running task.
     } finally {
+      clearTimeout(timeout);
       this.statusPollInFlight = false;
+      if (manual) this._setSyncing(false);
     }
   }
 
@@ -612,11 +633,14 @@ class VideoTranscriber {
   /* ── Progress ─────────────────────────────────────────── */
   _updateProgress(pct, msg, fromServer = false) {
     if (fromServer) {
+      const serverPct = Number.isFinite(Number(pct)) ? Number(pct) : 0;
       this._stopSP();
-      this.sp.lastServer = pct;
-      this.sp.current    = pct;
-      this._renderProgress(pct, msg);
-      this._updateStage(pct, msg);
+      this._updateStage(serverPct, msg);
+      const simulatedPct = Math.min(this.sp.current || 0, this.sp.target);
+      const nextPct = Math.max(serverPct, simulatedPct);
+      this.sp.lastServer = Math.max(this.sp.lastServer || 0, serverPct);
+      this.sp.current    = nextPct;
+      this._renderProgress(nextPct, msg);
       this._startSP();
     } else {
       this._renderProgress(pct, msg);
@@ -834,6 +858,14 @@ class VideoTranscriber {
       this.uploadZone.tabIndex = on ? -1 : 0;
     }
     if (this.fileInput) this.fileInput.disabled = on;
+  }
+
+  _setSyncing(on) {
+    if (!this.syncStatusBtn) return;
+    this.syncStatusBtn.disabled = on;
+    this.syncStatusBtn.classList.toggle('syncing', on);
+    const text = this.syncStatusBtn.querySelector('span');
+    if (text) text.textContent = this.t(on ? 'syncing_progress' : 'sync_progress');
   }
 
   _showError(msg) {
