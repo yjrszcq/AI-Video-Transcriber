@@ -20,6 +20,8 @@ services:
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-base}
       # 可选：本地上传单文件大小上限（MB），与本地环境变量一致
       - UPLOAD_MAX_MB=${UPLOAD_MAX_MB:-200}
+      # 可选：SSE心跳间隔（秒），降低长任务前端连接被代理切断的概率
+      - SSE_HEARTBEAT_SECONDS=${SSE_HEARTBEAT_SECONDS:-10}
       # 服务器配置
       - HOST=0.0.0.0
       - PORT=8000

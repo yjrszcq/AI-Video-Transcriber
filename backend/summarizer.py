@@ -1,4 +1,5 @@
 import os
+import asyncio
 import openai
 import logging
 from typing import Optional
@@ -52,6 +53,9 @@ class Summarizer:
             "ko": "한국어",
             "ar": "العربية"
         }
+
+    async def _create_chat_completion(self, **kwargs):
+        return await asyncio.to_thread(self.client.chat.completions.create, **kwargs)
     
     async def optimize_transcript(self, raw_transcript: str) -> str:
         """
@@ -173,7 +177,7 @@ class Summarizer:
 
 请特别注意修复因时间戳分割导致的句子不完整问题，并进行合理的段落划分！"""
 
-        response = self.client.chat.completions.create(
+        response = await self._create_chat_completion(
             model=self.fast_model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -221,7 +225,7 @@ class Summarizer:
 输出清理后的文本，保持原文结构。"""
 
             try:
-                response = self.client.chat.completions.create(
+                response = await self._create_chat_completion(
                     model=self.fast_model,
                     messages=[
                         {"role": "system", "content": system_prompt},
@@ -309,7 +313,7 @@ class Summarizer:
             )
 
         try:
-            response = self.client.chat.completions.create(
+            response = await self._create_chat_completion(
                 model=self.fast_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -792,7 +796,7 @@ class Summarizer:
 
 重新分段后的文本："""
 
-            response = self.client.chat.completions.create(
+            response = await self._create_chat_completion(
                 model=self.advanced_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -871,7 +875,7 @@ Core requirements:
 
 {text}"""
 
-        response = self.client.chat.completions.create(
+        response = await self._create_chat_completion(
             model=self.advanced_model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -1026,7 +1030,7 @@ Output ONLY the summary body in {language_name}."""
         logger.info(f"正在生成{language_name}摘要...")
         
         # 调用OpenAI API
-        response = self.client.chat.completions.create(
+        response = await self._create_chat_completion(
             model=self.advanced_model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -1072,7 +1076,7 @@ Rules:
 Output content only, no headings like "Summary:"."""
 
             try:
-                response = self.client.chat.completions.create(
+                response = await self._create_chat_completion(
                     model=self.advanced_model,
                     messages=[
                         {"role": "system", "content": system_prompt},
@@ -1164,7 +1168,7 @@ Rules:
 
 {combined_summaries}"""
 
-            response = self.client.chat.completions.create(
+            response = await self._create_chat_completion(
                 model=self.advanced_model,
                 messages=[
                     {"role": "system", "content": system_prompt},

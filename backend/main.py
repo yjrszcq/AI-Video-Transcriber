@@ -107,6 +107,7 @@ sse_connections = {}
 # 本地上传：允许的类型与大小上限（MB），可用环境变量 UPLOAD_MAX_MB 调整
 UPLOAD_ALLOWED_EXT = frozenset({".txt", ".mp3", ".mp4", ".m4a", ".wav", ".webm", ".mkv", ".ogg", ".flac"})
 UPLOAD_MAX_MB = int(os.getenv("UPLOAD_MAX_MB", "200"))
+SSE_HEARTBEAT_SECONDS = float(os.getenv("SSE_HEARTBEAT_SECONDS", "10"))
 
 
 def _sanitize_title_for_filename(title: str) -> str:
@@ -712,8 +713,8 @@ async def task_stream(task_id: str):
             # 持续监听状态更新
             while True:
                 try:
-                    # 等待状态更新，超时时间30秒发送心跳
-                    data = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    # 等待状态更新，超时发送心跳，避免代理/浏览器认为连接空闲
+                    data = await asyncio.wait_for(queue.get(), timeout=SSE_HEARTBEAT_SECONDS)
                     yield f"data: {data}\n\n"
                     
                     # 如果任务完成或失败，结束流
@@ -740,8 +741,9 @@ async def task_stream(task_id: str):
         event_generator(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET",
             "Access-Control-Allow-Headers": "Cache-Control"

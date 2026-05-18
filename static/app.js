@@ -8,6 +8,11 @@ class VideoTranscriber {
     this.eventSource    = null;
     this.apiBase        = '/api';
     this.currentLang    = 'en';
+    this.sseReconnectTimer = null;
+    this.statusPollTimer = null;
+    this.statusPollInFlight = false;
+    this.taskFinished = false;
+    this.sseRetryCount = 0;
 
     /* Smart progress simulation */
     this.sp = {
@@ -392,8 +397,11 @@ class VideoTranscriber {
 
       const data = await resp.json();
       this.currentTaskId = data.task_id;
+      this.taskFinished = false;
+      this.sseRetryCount = 0;
 
       this._initSP();
+      this._stopStatusPolling();
       this._updateProgress(5, this.t('preparing'), true);
       this._startSSE();
       this._saveSettings();
@@ -454,8 +462,11 @@ class VideoTranscriber {
 
       const data = await resp.json();
       this.currentTaskId = data.task_id;
+      this.taskFinished = false;
+      this.sseRetryCount = 0;
 
       this._initSP();
+      this._stopStatusPolling();
       this._updateProgress(5, this.t('preparing'), true);
       this._startSSE();
       this._saveSettings();
@@ -469,48 +480,106 @@ class VideoTranscriber {
 
   /* ── SSE ──────────────────────────────────────────────── */
   _startSSE() {
-    if (!this.currentTaskId) return;
+    if (!this.currentTaskId || this.taskFinished) return;
+    this._closeEventSource();
+    if (this.sseReconnectTimer) {
+      clearTimeout(this.sseReconnectTimer);
+      this.sseReconnectTimer = null;
+    }
+
     this.eventSource = new EventSource(`${this.apiBase}/task-stream/${this.currentTaskId}`);
+
+    this.eventSource.onopen = () => {
+      this.sseRetryCount = 0;
+      this._stopStatusPolling();
+    };
 
     this.eventSource.onmessage = (ev) => {
       try {
         const task = JSON.parse(ev.data);
         if (task.type === 'heartbeat') return;
-
-        this._updateProgress(task.progress, task.message, true);
-
-        if (task.status === 'completed') {
-          this._stopSP(); this._stopSSE(); this._setLoading(false); this._hideProgress();
-          this._showResults(task.script, task.summary, task.video_title, task.translation, task.detected_language, task.summary_language);
-        } else if (task.status === 'error') {
-          this._stopSP(); this._stopSSE(); this._setLoading(false); this._hideProgress();
-          this._showError(task.error || 'Processing error');
-        }
+        this._handleTaskUpdate(task);
       } catch (_) {}
     };
 
-    this.eventSource.onerror = async () => {
-      this._stopSSE();
-      try {
-        if (this.currentTaskId) {
-          const r = await fetch(`${this.apiBase}/task-status/${this.currentTaskId}`);
-          if (r.ok) {
-            const task = await r.json();
-            if (task?.status === 'completed') {
-              this._stopSP(); this._setLoading(false); this._hideProgress();
-              this._showResults(task.script, task.summary, task.video_title, task.translation, task.detected_language, task.summary_language);
-              return;
-            }
-          }
-        }
-      } catch (_) {}
-      this._showError(this.t('error_processing_failed') + 'SSE disconnected');
-      this._setLoading(false);
+    this.eventSource.onerror = () => {
+      if (this.taskFinished) return;
+      this._closeEventSource();
+      this._startStatusPolling();
+      this._scheduleSSEReconnect();
     };
   }
 
+  _handleTaskUpdate(task) {
+    if (!task || task.type === 'heartbeat' || this.taskFinished) return;
+
+    this._updateProgress(task.progress || 0, task.message || this.t('processing'), true);
+
+    if (task.status === 'completed') {
+      this.taskFinished = true;
+      this._stopSP(); this._stopSSE(); this._stopStatusPolling(); this._setLoading(false); this._hideProgress();
+      this._showResults(task.script, task.summary, task.video_title, task.translation, task.detected_language, task.summary_language);
+    } else if (task.status === 'error') {
+      this.taskFinished = true;
+      this._stopSP(); this._stopSSE(); this._stopStatusPolling(); this._setLoading(false); this._hideProgress();
+      this._showError(task.error || 'Processing error');
+    }
+  }
+
+  _scheduleSSEReconnect() {
+    if (!this.currentTaskId || this.taskFinished || this.sseReconnectTimer) return;
+    const delay = Math.min(1000 * Math.pow(2, this.sseRetryCount), 10000);
+    this.sseRetryCount += 1;
+    this.sseReconnectTimer = setTimeout(() => {
+      this.sseReconnectTimer = null;
+      this._startSSE();
+    }, delay);
+  }
+
+  _startStatusPolling() {
+    if (this.statusPollTimer || !this.currentTaskId || this.taskFinished) return;
+    this._pollTaskStatus();
+    this.statusPollTimer = setInterval(() => this._pollTaskStatus(), 5000);
+  }
+
+  _stopStatusPolling() {
+    if (this.statusPollTimer) {
+      clearInterval(this.statusPollTimer);
+      this.statusPollTimer = null;
+    }
+    this.statusPollInFlight = false;
+  }
+
+  async _pollTaskStatus() {
+    if (!this.currentTaskId || this.taskFinished || this.statusPollInFlight) return;
+    this.statusPollInFlight = true;
+    const taskId = this.currentTaskId;
+    try {
+      const r = await fetch(`${this.apiBase}/task-status/${taskId}`);
+      if (r.ok) {
+        if (taskId !== this.currentTaskId || this.taskFinished) return;
+        this._handleTaskUpdate(await r.json());
+      }
+    } catch (_) {
+      // Keep polling; transient network failures should not fail a running task.
+    } finally {
+      this.statusPollInFlight = false;
+    }
+  }
+
+  _closeEventSource() {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+  }
+
   _stopSSE() {
-    if (this.eventSource) { this.eventSource.close(); this.eventSource = null; }
+    if (this.sseReconnectTimer) {
+      clearTimeout(this.sseReconnectTimer);
+      this.sseReconnectTimer = null;
+    }
+    this._closeEventSource();
   }
 
   /* ── Progress ─────────────────────────────────────────── */
@@ -761,4 +830,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window.addEventListener('beforeunload', () => {
   if (window.vt?.eventSource) window.vt._stopSSE();
+  if (window.vt?.statusPollTimer) window.vt._stopStatusPolling();
 });

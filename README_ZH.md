@@ -189,6 +189,7 @@ AI-Video-Transcriber/
 | `PORT` | 服务器端口 | `8000` | 否 |
 | `WHISPER_MODEL_SIZE` | Whisper模型大小 | `base` | 否 |
 | `UPLOAD_MAX_MB` | 本地上传单文件大小上限（MB） | `200` | 否 |
+| `SSE_HEARTBEAT_SECONDS` | 长任务状态推送的SSE心跳间隔（秒） | `10` | 否 |
 
 另提供可选接口 `POST /api/process-upload`，与向 `/api/process-video` 提交 `file`  multipart 字段行为一致。
 

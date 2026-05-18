@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import os
 import re
 from typing import Optional
@@ -58,6 +59,9 @@ class Translator:
         except Exception as e:
             logger.error(f"初始化 OpenAI 客户端失败: {e}")
             self.client = None
+
+    async def _create_chat_completion(self, **kwargs):
+        return await asyncio.to_thread(self.client.chat.completions.create, **kwargs)
     
     def _detect_source_language(self, text: str) -> str:
         """检测源文本语言"""
@@ -246,7 +250,7 @@ class Translator:
 只返回翻译结果，不要添加任何说明。"""
 
         try:
-            response = self.client.chat.completions.create(
+            response = await self._create_chat_completion(
                 model=self._translation_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -290,7 +294,7 @@ class Translator:
 只返回翻译结果。"""
 
             try:
-                response = self.client.chat.completions.create(
+                response = await self._create_chat_completion(
                     model=self._translation_model,
                     messages=[
                         {"role": "system", "content": system_prompt},
