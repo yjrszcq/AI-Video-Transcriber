@@ -87,11 +87,18 @@ class Summarizer:
 
             if len(preprocessed) > max_chars_per_chunk:
                 logger.info(f"文本较长({len(preprocessed)} chars)，启用分块优化")
-                return await self._format_long_transcript_in_chunks(
+                optimized = await self._format_long_transcript_in_chunks(
                     preprocessed, detected_lang_code, max_chars_per_chunk, warnings=warnings
                 )
             else:
-                return await self._format_single_chunk(preprocessed, detected_lang_code, warnings=warnings)
+                optimized = await self._format_single_chunk(preprocessed, detected_lang_code, warnings=warnings)
+
+            if optimized and optimized.strip():
+                return optimized
+
+            logger.warning("优化结果为空，回退到基础清理结果")
+            self._add_warning(warnings, "optimize_fallback")
+            return self._apply_basic_formatting(preprocessed).strip() or raw_transcript
 
         except Exception as e:
             logger.error(f"优化转录文本失败: {str(e)}")
@@ -524,6 +531,7 @@ class Summarizer:
 
     def _remove_timestamps_and_meta(self, text: str) -> str:
         """仅移除时间戳行与明显元信息（标题、检测语言等），保留原文口语/重复。"""
+        import re
         lines = text.split('\n')
         kept = []
         for line in lines:
@@ -534,7 +542,9 @@ class Summarizer:
             if s.startswith('# '):
                 # 跳过顶级标题（通常是视频标题，可在最终加回）
                 continue
-            if s.startswith('**检测语言:**') or s.startswith('**语言概率:**'):
+            if s.startswith('## ') and re.search(r"(transcription content|transcript|转录内容)", s, flags=re.I):
+                continue
+            if re.match(r"^\*\*(detected language|language probability|检测语言|语言概率):\*\*", s, flags=re.I):
                 continue
             kept.append(line)
         # 规范空行

@@ -67,42 +67,72 @@ class Transcriber:
             import asyncio
             def _do_transcribe():
                 self._load_model()
-                segments, info = self.model.transcribe(
-                    audio_path,
-                    language=language,
-                    beam_size=5,
-                    best_of=5,
-                    temperature=[0.0, 0.2, 0.4],  # 使用温度递增策略
-                    # 更稳健：开启VAD与阈值，降低静音/噪音导致的重复
+
+                def _run(vad_filter: bool, no_speech_threshold: float, log_prob_threshold: float):
+                    kwargs = {
+                        "language": language,
+                        "beam_size": 5,
+                        "best_of": 5,
+                        "temperature": [0.0, 0.2, 0.4],  # 使用温度递增策略
+                        "vad_filter": vad_filter,
+                        "no_speech_threshold": no_speech_threshold,
+                        "compression_ratio_threshold": 2.3,  # 压缩比阈值，检测重复
+                        "log_prob_threshold": log_prob_threshold,
+                        # 避免错误累积导致的连环重复
+                        "condition_on_previous_text": False,
+                    }
+                    if vad_filter:
+                        kwargs["vad_parameters"] = {
+                            "min_silence_duration_ms": 900,  # 静音检测时长
+                            "speech_pad_ms": 300,  # 语音填充
+                        }
+
+                    segments, info = self.model.transcribe(audio_path, **kwargs)
+                    segment_rows = []
+                    text_parts = []
+                    for segment in segments:
+                        text = (segment.text or "").strip()
+                        if not text:
+                            continue
+                        segment_rows.append((segment.start, segment.end, text))
+                        text_parts.append(text)
+                    return info, segment_rows, " ".join(text_parts).strip()
+
+                info, segment_rows, plain_text = _run(
                     vad_filter=True,
-                    vad_parameters={
-                        "min_silence_duration_ms": 900,  # 静音检测时长
-                        "speech_pad_ms": 300  # 语音填充
-                    },
-                    no_speech_threshold=0.7,  # 无语音阈值
-                    compression_ratio_threshold=2.3,  # 压缩比阈值，检测重复
-                    log_prob_threshold=-1.0,  # 日志概率阈值
-                    # 避免错误累积导致的连环重复
-                    condition_on_previous_text=False
+                    no_speech_threshold=0.7,
+                    log_prob_threshold=-1.0,
                 )
+                if not plain_text:
+                    logger.warning("VAD过滤后未得到转录文本，使用宽松参数重试")
+                    info, segment_rows, plain_text = _run(
+                        vad_filter=False,
+                        no_speech_threshold=0.9,
+                        log_prob_threshold=-1.5,
+                    )
+
+                if not plain_text:
+                    raise Exception("未检测到可转录语音，请确认文件包含清晰语音或尝试提高音量后重试")
+
                 detected_language = info.language
+                language_probability = getattr(info, "language_probability", 0.0) or 0.0
                 logger.info(f"检测到的语言: {detected_language}")
-                logger.info(f"语言检测概率: {info.language_probability:.2f}")
+                logger.info(f"语言检测概率: {language_probability:.2f}")
+                logger.info(f"转录片段数: {len(segment_rows)}")
 
                 transcript_lines = [
                     "# Video Transcription",
                     "",
                     f"**Detected Language:** {detected_language}",
-                    f"**Language Probability:** {info.language_probability:.2f}",
+                    f"**Language Probability:** {language_probability:.2f}",
                     "",
                     "## Transcription Content",
                     "",
                 ]
 
-                for segment in segments:
-                    start_time = self._format_time(segment.start)
-                    end_time = self._format_time(segment.end)
-                    text = segment.text.strip()
+                for start, end, text in segment_rows:
+                    start_time = self._format_time(start)
+                    end_time = self._format_time(end)
 
                     transcript_lines.append(f"**[{start_time} - {end_time}]**")
                     transcript_lines.append("")
