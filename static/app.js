@@ -86,6 +86,7 @@ class VideoTranscriber {
         error_unknown_download_type:'Unknown download type',
         error_sync_failed:       'Sync failed: ',
         error_sync_timeout:      'Sync timed out',
+        error_no_speech_detected:'No transcribable speech was detected. The file may be too quiet, too short, or mostly silence/background noise. Please try a clearer audio file.',
         ai_warning_title:        'AI fallback used',
         ai_warning_optimize_fallback: 'Transcript optimization failed; the original transcript was used.',
         ai_warning_translation_fallback: 'Translation failed; untranslated text was kept.',
@@ -153,6 +154,7 @@ class VideoTranscriber {
         error_unknown_download_type:'未知的下载类型',
         error_sync_failed:       '同步失败：',
         error_sync_timeout:      '同步超时',
+        error_no_speech_detected:'未检测到可转录语音。该文件可能语音过短、音量过低，或主要是静音/背景音，请换一个更清晰的音频后重试。',
         ai_warning_title:        'AI 功能已降级',
         ai_warning_optimize_fallback: '转录优化失败，已使用原始转录文本。',
         ai_warning_translation_fallback: '翻译失败，已保留未翻译文本。',
@@ -592,7 +594,7 @@ class VideoTranscriber {
     } else if (task.status === 'error') {
       this.taskFinished = true;
       this._stopSP(); this._stopSSE(); this._stopStatusPolling(); this._setLoading(false); this._hideProgress();
-      this._showError(task.error || this.t('error_processing_generic'));
+      this._showError(this._getTaskErrorMessage(task));
     }
   }
 
@@ -926,6 +928,14 @@ class VideoTranscriber {
   }
 
   _hideResults() { this.resultsPanel.classList.remove('show'); }
+
+  _getTaskErrorMessage(task) {
+    if (task && task.error_code) {
+      const localized = this.t(`error_${task.error_code}`, null);
+      if (localized) return localized;
+    }
+    return task?.error || task?.message || this.t('error_processing_generic');
+  }
 
   /* ── Tabs ─────────────────────────────────────────────── */
   _switchTab(name) {

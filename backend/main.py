@@ -122,6 +122,20 @@ def _sanitize_title_for_filename(title: str) -> str:
     return safe[:80] or "untitled"
 
 
+def _build_task_error_state(exc: Exception) -> dict:
+    """提取任务错误信息，保留错误码供前端本地化展示。"""
+    message = str(exc)
+    error_state = {
+        "status": "error",
+        "error": message,
+        "message": f"处理失败: {message}",
+    }
+    error_code = getattr(exc, "code", None)
+    if isinstance(error_code, str) and error_code:
+        error_state["error_code"] = error_code
+    return error_state
+
+
 def _txt_to_raw_transcript_markdown(body: str) -> str:
     """将纯文本包装为与 Whisper 输出结构一致的 Markdown。"""
     text = body.strip() if body.strip() else "(empty)"
@@ -593,11 +607,7 @@ async def process_video_task(
         if task_id in active_tasks:
             del active_tasks[task_id]
             
-        tasks[task_id].update({
-            "status": "error",
-            "error": str(e),
-            "message": f"处理失败: {str(e)}"
-        })
+        tasks[task_id].update(_build_task_error_state(e))
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
 
@@ -691,11 +701,7 @@ async def process_upload_task(
         logger.error(f"任务 {task_id} 处理失败: {str(e)}")
         if task_id in active_tasks:
             del active_tasks[task_id]
-        tasks[task_id].update({
-            "status": "error",
-            "error": str(e),
-            "message": f"处理失败: {str(e)}",
-        })
+        tasks[task_id].update(_build_task_error_state(e))
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
 

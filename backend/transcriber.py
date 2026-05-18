@@ -6,6 +6,15 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
+class TaskProcessingError(Exception):
+    """带错误码的任务异常，供前端做本地化展示。"""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
 class Transcriber:
     """音频转录器，使用Faster-Whisper进行语音转文字"""
     
@@ -112,7 +121,10 @@ class Transcriber:
                     )
 
                 if not plain_text:
-                    raise Exception("未检测到可转录语音，请确认文件包含清晰语音或尝试提高音量后重试")
+                    raise TaskProcessingError(
+                        "no_speech_detected",
+                        "未检测到可转录语音，请确认文件包含清晰语音或尝试提高音量后重试",
+                    )
 
                 detected_language = info.language
                 language_probability = getattr(info, "language_probability", 0.0) or 0.0
