@@ -67,6 +67,12 @@ class VideoTranscriber {
         upload_or:               'or drop your files',
         upload_formats:          '.mp3 · .mp4 · .wav · .m4a · .webm · .mkv · .ogg · .flac',
         upload_files_btn:        'Upload files',
+        upload_files_aria:       'Upload files',
+        error_api_config_required:'API key and URL are required',
+        error_request_failed:    'Request failed',
+        error_processing_generic:'Processing error',
+        error_task_status_failed:'Failed to get task status',
+        error_unknown_download_type:'Unknown download type',
         error_upload_type:       'Unsupported file type',
         error_upload_empty:      'File is empty',
         error_upload_size:       (mb) => `File exceeds ${mb} MB limit`,
@@ -117,6 +123,12 @@ class VideoTranscriber {
         upload_or:               '或拖放文件到此处',
         upload_formats:          '.mp3 · .mp4 · .wav · .m4a · .webm · .mkv · .ogg · .flac',
         upload_files_btn:        '上传文件',
+        upload_files_aria:       '上传文件',
+        error_api_config_required:'请填写 API Key 和 URL',
+        error_request_failed:    '请求失败',
+        error_processing_generic:'处理出错',
+        error_task_status_failed:'获取任务状态失败',
+        error_unknown_download_type:'未知的下载类型',
         error_upload_type:       '不支持的文件类型',
         error_upload_empty:      '文件为空',
         error_upload_size:       (mb) => `文件超过 ${mb} MB 限制`,
@@ -277,6 +289,10 @@ class VideoTranscriber {
       const v = this.t(el.dataset.i18nPlaceholder, null);
       if (typeof v === 'string') el.placeholder = v;
     });
+    document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+      const v = this.t(el.dataset.i18nAriaLabel, null);
+      if (typeof v === 'string') el.setAttribute('aria-label', v);
+    });
   }
 
   /* ── Settings persistence ─────────────────────────────── */
@@ -319,7 +335,7 @@ class VideoTranscriber {
     const apiKey  = this.apiKeyInput.value.trim();
 
     if (!baseUrl || !apiKey) {
-      if (!silent) this._setFetchStatus('err', this.t('api_key') + ' & URL required');
+      if (!silent) this._setFetchStatus('err', this.t('error_api_config_required'));
       return;
     }
 
@@ -401,7 +417,7 @@ class VideoTranscriber {
       const resp = await fetch(`${this.apiBase}/process-video`, { method: 'POST', body: fd });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        throw new Error(err.detail || 'Request failed');
+        throw new Error(err.detail || this.t('error_request_failed'));
       }
 
       const data = await resp.json();
@@ -531,7 +547,7 @@ class VideoTranscriber {
     } else if (task.status === 'error') {
       this.taskFinished = true;
       this._stopSP(); this._stopSSE(); this._stopStatusPolling(); this._setLoading(false); this._hideProgress();
-      this._showError(task.error || 'Processing error');
+      this._showError(task.error || this.t('error_processing_generic'));
     }
   }
 
@@ -783,14 +799,14 @@ class VideoTranscriber {
     if (!this.currentTaskId) { this._showError(this.t('error_no_download')); return; }
     try {
       const r = await fetch(`${this.apiBase}/task-status/${this.currentTaskId}`);
-      if (!r.ok) throw new Error('Failed to get task status');
+      if (!r.ok) throw new Error(this.t('error_task_status_failed'));
       const task = await r.json();
 
       let filename;
       if      (type === 'script')      filename = task.script_path      ? task.script_path.split('/').pop()      : `transcript_${task.safe_title||'x'}_${task.short_id||'x'}.md`;
       else if (type === 'summary')     filename = task.summary_path     ? task.summary_path.split('/').pop()     : `summary_${task.safe_title||'x'}_${task.short_id||'x'}.md`;
       else if (type === 'translation') filename = task.translation_path ? task.translation_path.split('/').pop() : `translation_${task.safe_title||'x'}_${task.short_id||'x'}.md`;
-      else throw new Error('Unknown type');
+      else throw new Error(this.t('error_unknown_download_type'));
 
       const a = document.createElement('a');
       a.href = `${this.apiBase}/download/${encodeURIComponent(filename)}`;
