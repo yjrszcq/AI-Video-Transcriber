@@ -4,7 +4,7 @@ services:
     image: ai-video-transcriber:latest
     container_name: ai-video-transcriber
     ports:
-      - "${PORT:-8000}:${PORT:-8000}"
+      - "${PORT:-8000}:8000"
     environment:
       # 可选：服务端默认OpenAI API密钥（请在.env文件中设置或直接修改，不设置时可在页面 AI Settings 中填写）
       - OPENAI_API_KEY=${OPENAI_API_KEY:-your_openai_api_key_here}
@@ -24,10 +24,6 @@ services:
       - SSE_HEARTBEAT_SECONDS=${SSE_HEARTBEAT_SECONDS:-10}
       # 可选：设为true时用镜像内预置模型覆盖运行期同名缓存，用于修复损坏缓存
       - REPAIR_PRELOADED_HF_CACHE=${REPAIR_PRELOADED_HF_CACHE:-false}
-      # 可选：容器内监听地址。Docker 场景通常应保持 0.0.0.0
-      - HOST=${HOST:-0.0.0.0}
-      # 可选：服务端口；同时用于宿主机端口映射
-      - PORT=${PORT:-8000}
     volumes:
       # 运行期模型缓存。入口脚本会合并镜像内预置模型，默认不覆盖已有文件。
       - ./models/huggingface:/data/huggingface
