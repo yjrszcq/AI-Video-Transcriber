@@ -8,6 +8,12 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-your_openai_api_key_here}
       # 可选：自定义OpenAI端点
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      # 可选，文本处理模型配置
+      - OPENAI_OPTIMIZE_MODEL=${OPENAI_OPTIMIZE_MODEL:-your_optimize_model_here}
+      # 可选，摘要模型配置
+      - OPENAI_SUMMARY_MODEL=${OPENAI_SUMMARY_MODEL:-your_summarize_model_here}
+      # 可选，翻译模型配置
+      - OPENAI_TRANSLATION_MODEL=${OPENAI_TRANSLATION_MODEL:-your_translate_model_here}
       # 可选：Whisper模型大小
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-base}
       # 可选：本地上传单文件大小上限（MB），与本地环境变量一致
