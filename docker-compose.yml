@@ -6,8 +6,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # 可选：服务端默认OpenAI API密钥；不设置时可在页面 AI Settings 中填写
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # 可选：服务端默认OpenAI API密钥（请在.env文件中设置或直接修改，不设置时可在页面 AI Settings 中填写）
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-your_openai_api_key_here}
       # 可选：自定义OpenAI端点
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
       # 可选，文本处理模型配置
