@@ -213,6 +213,11 @@ class VideoTranscriber {
     if (this.uploadPickBtn && this.fileInput && this.uploadZone) {
       this.uploadPickBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (this.uploadPickBtn.tagName !== 'LABEL') this.fileInput.click();
+      });
+      this.uploadPickBtn.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
         this.fileInput.click();
       });
       this.uploadZone.addEventListener('click', (e) => {
@@ -248,7 +253,11 @@ class VideoTranscriber {
   }
 
   /* ── i18n ─────────────────────────────────────────────── */
-  t(key) { return this.i18n[this.currentLang][key] || this.i18n['en'][key] || key; }
+  t(key, fallback = key) {
+    const current = this.i18n[this.currentLang] || {};
+    const value = current[key] || this.i18n.en[key];
+    return value === undefined ? fallback : value;
+  }
 
   _switchLang(lang) {
     this.currentLang = lang;
@@ -257,7 +266,7 @@ class VideoTranscriber {
     document.title = this.t('title');
 
     document.querySelectorAll('[data-i18n]').forEach(el => {
-      const v = this.t(el.dataset.i18n);
+      const v = this.t(el.dataset.i18n, null);
       if (typeof v === 'string') {
         // footer 等允许含 HTML 的 key 用 innerHTML，其余保持 textContent
         if (el.dataset.i18n === 'footer_text') el.innerHTML = v;
@@ -265,7 +274,7 @@ class VideoTranscriber {
       }
     });
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-      const v = this.t(el.dataset.i18nPlaceholder);
+      const v = this.t(el.dataset.i18nPlaceholder, null);
       if (typeof v === 'string') el.placeholder = v;
     });
   }
