@@ -17,6 +17,25 @@ COPY requirements.txt .
 RUN python -m pip install --upgrade pip setuptools wheel \
     && pip install --no-cache-dir -r requirements.txt
 
+# Hugging Face / faster-whisper 缓存目录
+# 构建时预下载的模型会保存在镜像里的这个目录
+ENV HF_HOME=/root/.cache/huggingface
+ENV HUGGINGFACE_HUB_CACHE=/root/.cache/huggingface/hub
+
+# 是否在镜像构建阶段预下载 Whisper 模型
+# none = 不下载模型，即 standard/latest
+# base = 只下载 base 模型
+# all  = 下载常用 Whisper 模型
+ARG PRELOAD_WHISPER_MODELS=none
+
+RUN if [ "$PRELOAD_WHISPER_MODELS" = "base" ]; then \
+      python -c "from faster_whisper.utils import download_model; download_model('base')"; \
+    elif [ "$PRELOAD_WHISPER_MODELS" = "all" ]; then \
+      python -c "from faster_whisper.utils import download_model; [download_model(m) for m in ['tiny','base','small','medium','large-v3']]"; \
+    else \
+      echo 'Skip Whisper model preload'; \
+    fi
+
 # 复制项目文件
 COPY . .
 
