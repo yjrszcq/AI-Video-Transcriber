@@ -11,6 +11,9 @@ class VideoTranscriber {
     this.sseReconnectTimer = null;
     this.statusPollTimer = null;
     this.statusPollInFlight = false;
+    this.statusPollController = null;
+    this.statusPollRequestId = 0;
+    this.statusPollSource = null;
     this.statusPollIntervalMs = 15000;
     this.statusPollTimeoutMs = 10000;
     this.taskFinished = false;
@@ -587,15 +590,29 @@ class VideoTranscriber {
       clearInterval(this.statusPollTimer);
       this.statusPollTimer = null;
     }
+    if (this.statusPollController) {
+      this.statusPollController.abort();
+      this.statusPollController = null;
+    }
     this.statusPollInFlight = false;
+    this.statusPollSource = null;
   }
 
   async _pollTaskStatus(manual = false) {
-    if (!this.currentTaskId || this.taskFinished || this.statusPollInFlight) return;
+    if (!this.currentTaskId || this.taskFinished) return;
+    if (this.statusPollInFlight) {
+      if (!manual || this.statusPollSource === 'manual') return;
+      if (this.statusPollController) this.statusPollController.abort();
+    }
+
+    const source = manual ? 'manual' : 'auto';
+    const requestId = ++this.statusPollRequestId;
     this.statusPollInFlight = true;
+    this.statusPollSource = source;
     if (manual) this._setSyncing(true);
     const taskId = this.currentTaskId;
     const controller = new AbortController();
+    this.statusPollController = controller;
     const timeout = setTimeout(() => controller.abort(), this.statusPollTimeoutMs);
     try {
       const r = await fetch(`${this.apiBase}/task-status/${taskId}`, { signal: controller.signal });
@@ -603,15 +620,19 @@ class VideoTranscriber {
       if (taskId !== this.currentTaskId || this.taskFinished) return;
       this._handleTaskUpdate(await r.json());
     } catch (e) {
-      if (manual) {
+      if (manual && !this.taskFinished && taskId === this.currentTaskId) {
         const msg = e.name === 'AbortError' ? this.t('error_sync_timeout') : e.message;
         this._showError(this.t('error_sync_failed') + msg);
       }
       // Keep polling; transient network failures should not fail a running task.
     } finally {
       clearTimeout(timeout);
-      this.statusPollInFlight = false;
-      if (manual) this._setSyncing(false);
+      if (this.statusPollRequestId === requestId) {
+        this.statusPollInFlight = false;
+        this.statusPollSource = null;
+        this.statusPollController = null;
+        if (manual) this._setSyncing(false);
+      }
     }
   }
 
