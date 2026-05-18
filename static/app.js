@@ -11,6 +11,7 @@ class VideoTranscriber {
     this.sseReconnectTimer = null;
     this.statusPollTimer = null;
     this.statusPollInFlight = false;
+    this.statusPollIntervalMs = 5000;
     this.taskFinished = false;
     this.sseRetryCount = 0;
 
@@ -429,6 +430,7 @@ class VideoTranscriber {
       this._stopStatusPolling();
       this._updateProgress(5, this.t('preparing'), true);
       this._startSSE();
+      this._startStatusPolling();
       this._saveSettings();
 
     } catch (err) {
@@ -494,6 +496,7 @@ class VideoTranscriber {
       this._stopStatusPolling();
       this._updateProgress(5, this.t('preparing'), true);
       this._startSSE();
+      this._startStatusPolling();
       this._saveSettings();
 
     } catch (err) {
@@ -516,7 +519,6 @@ class VideoTranscriber {
 
     this.eventSource.onopen = () => {
       this.sseRetryCount = 0;
-      this._stopStatusPolling();
     };
 
     this.eventSource.onmessage = (ev) => {
@@ -563,8 +565,8 @@ class VideoTranscriber {
 
   _startStatusPolling() {
     if (this.statusPollTimer || !this.currentTaskId || this.taskFinished) return;
+    this.statusPollTimer = setInterval(() => this._pollTaskStatus(), this.statusPollIntervalMs);
     this._pollTaskStatus();
-    this.statusPollTimer = setInterval(() => this._pollTaskStatus(), 5000);
   }
 
   _stopStatusPolling() {
