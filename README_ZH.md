@@ -62,7 +62,7 @@ docker build -t ai-video-transcriber .
 docker run -p 8000:8000 --env-file .env ai-video-transcriber
 ```
 
-Docker Compose 会把运行期 Whisper / Hugging Face 缓存保存到 `./models/huggingface`。预下载模型的镜像会把模型保存在 `/opt/preloaded-hf-cache`；启动时，入口脚本会把缺失的预置缓存文件合并到挂载的运行期缓存中，且不会覆盖已有文件。
+Docker Compose 会把运行期 Whisper / Hugging Face 缓存保存到 `./models/huggingface`。预下载模型的镜像会把模型保存在 `/opt/preloaded-hf-cache`；启动时，入口脚本会把缺失的预置缓存文件合并到挂载的运行期缓存中，且不会覆盖已有文件。如需修复疑似损坏的预置模型缓存，可设置 `REPAIR_PRELOADED_HF_CACHE=true`，用镜像内预置模型覆盖运行期同名缓存文件。
 
 镜像基于 **Python 3.12**（Debian Bookworm），构建时会先升级 `pip` / `setuptools` / `wheel`，再按 `requirements.txt` 安装，与本地在新版 Python 下创建虚拟环境后 `pip install -r requirements.txt` 的解析方式一致。
 
@@ -190,6 +190,7 @@ AI-Video-Transcriber/
 | `HOST` | 服务器地址 | `0.0.0.0` | 否 |
 | `PORT` | 服务器端口 | `8000` | 否 |
 | `WHISPER_MODEL_SIZE` | Whisper模型大小 | `base` | 否 |
+| `REPAIR_PRELOADED_HF_CACHE` | 用镜像内预置模型覆盖运行期同名缓存文件 | `false` | 否 |
 | `UPLOAD_MAX_MB` | 本地上传单文件大小上限（MB） | `200` | 否 |
 | `SSE_HEARTBEAT_SECONDS` | 长任务状态推送的SSE心跳间隔（秒） | `10` | 否 |
 

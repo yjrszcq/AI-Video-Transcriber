@@ -63,7 +63,7 @@ docker build -t ai-video-transcriber .
 docker run -p 8000:8000 --env-file .env ai-video-transcriber
 ```
 
-Docker Compose stores runtime Whisper / Hugging Face cache files in `./models/huggingface`. Images that preload Whisper models keep those files in `/opt/preloaded-hf-cache`; on startup, the entrypoint merges missing preloaded cache files into the mounted runtime cache without overwriting existing files.
+Docker Compose stores runtime Whisper / Hugging Face cache files in `./models/huggingface`. Images that preload Whisper models keep those files in `/opt/preloaded-hf-cache`; on startup, the entrypoint merges missing preloaded cache files into the mounted runtime cache without overwriting existing files. Set `REPAIR_PRELOADED_HF_CACHE=true` to overwrite matching runtime cache files from the image when you need to repair suspected corrupted preloaded-model cache files.
 
 The image uses **Python 3.12** (Debian Bookworm), upgrades `pip`/`setuptools`/`wheel`, then installs from `requirements.txt` — same version constraints as a fresh local venv on a current Python.
 
@@ -190,6 +190,7 @@ AI-Video-Transcriber/
 | `HOST` | Server address | `0.0.0.0` | No |
 | `PORT` | Server port | `8000` | No |
 | `WHISPER_MODEL_SIZE` | Whisper model size | `base` | No |
+| `REPAIR_PRELOADED_HF_CACHE` | Overwrite matching runtime cache files from preloaded image models | `false` | No |
 | `UPLOAD_MAX_MB` | Maximum upload size for local files (MB) | `200` | No |
 | `SSE_HEARTBEAT_SECONDS` | SSE heartbeat interval for long-running task updates | `10` | No |
 
