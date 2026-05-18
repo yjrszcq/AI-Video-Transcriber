@@ -45,14 +45,14 @@ COPY . .
 # 创建临时目录和运行期缓存目录
 RUN mkdir -p temp "$HF_HOME"
 
-# 设置环境变量
+# 设置默认环境变量（均可在运行时通过 docker run / docker-compose 覆盖）
 ENV HOST=0.0.0.0
 ENV PORT=8000
 ENV WHISPER_MODEL_SIZE=base
 ENV UPLOAD_MAX_MB=200
 ENV SSE_HEARTBEAT_SECONDS=10
 
-# 暴露端口
+# 暴露默认端口（镜像元数据；运行时实际监听端口仍可由 PORT 覆盖）
 EXPOSE 8000
 
 # 首次启动时，如果运行期缓存为空，则复制镜像内预下载模型。
@@ -61,7 +61,7 @@ ENTRYPOINT ["./docker-entrypoint.sh"]
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/ || exit 1
+    CMD curl -f "http://localhost:${PORT:-8000}/" || exit 1
 
 # 启动命令
 CMD ["python3", "start.py", "--prod"]
