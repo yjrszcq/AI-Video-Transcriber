@@ -209,15 +209,19 @@ AI-Video-Transcriber/
 
 ### 环境变量
 
-| 变量名 | 描述 | 默认值 | 必需 |
-|--------|------|--------|------|
-| `OPENAI_API_KEY` | API密钥（服务端默认值） | - | 否，可在UI中配置 |
-| `HOST` | 服务器地址 | `0.0.0.0` | 否 |
-| `PORT` | 服务器端口 | `8000` | 否 |
-| `WHISPER_MODEL_SIZE` | Whisper模型大小 | `base` | 否 |
-| `REPAIR_PRELOADED_HF_CACHE` | 用镜像内预置模型覆盖运行期同名缓存文件 | `false` | 否 |
-| `UPLOAD_MAX_MB` | 本地上传单文件大小上限（MB） | `200` | 否 |
-| `SSE_HEARTBEAT_SECONDS` | 长任务状态推送的SSE心跳间隔（秒） | `10` | 否 |
+| 变量名 | 描述 | 默认值 | 必需 | UI 中配置 |
+|--------|------|--------|------|------|
+| `OPENAI_API_KEY` | API密钥（服务端默认值） | - | 否 | 可 |
+| `OPENAI_BASE_URL` | 自定义OpenAI端点 | - | 否 | 可 |
+| `OPENAI_OPTIMIZE_MODEL` | 文本处理模型配置 | - | 否 | 可 |
+| `OPENAI_SUMMARY_MODEL` | 摘要模型配置 | - | 否 | 可 |
+| `OPENAI_TRANSLATION_MODEL` | 翻译模型配置 | - | 否 | 可 |
+| `WHISPER_MODEL_SIZE` | Whisper模型大小 | `base` | 否 | 否 |
+| `REPAIR_PRELOADED_HF_CACHE` | 用镜像内预置模型覆盖运行期同名缓存文件 | `false` | 否 | 否 |
+| `UPLOAD_MAX_MB` | 本地上传单文件大小上限（MB） | `200` | 否 | 否 |
+| `SSE_HEARTBEAT_SECONDS` | 长任务状态推送的SSE心跳间隔（秒） | `10` | 否 | 否 |
+
+在 UI 中，`OPENAI_OPTIMIZE_MODEL`、`OPENAI_SUMMARY_MODEL` 和 `OPENAI_TRANSLATION_MODEL` 共用同一个模型选择项；如果你希望优化、摘要和翻译分别使用不同的模型，请在 `.env` 中单独配置。
 
 另提供可选接口 `POST /api/process-upload`，与向 `/api/process-video` 提交 `file`  multipart 字段行为一致。
 

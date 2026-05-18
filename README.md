@@ -209,15 +209,19 @@ AI-Video-Transcriber/
 
 ### Environment Variables
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `OPENAI_API_KEY` | API key (server-side default) | - | No — can be set in UI instead |
-| `HOST` | Server address | `0.0.0.0` | No |
-| `PORT` | Server port | `8000` | No |
-| `WHISPER_MODEL_SIZE` | Whisper model size | `base` | No |
-| `REPAIR_PRELOADED_HF_CACHE` | Overwrite matching runtime cache files from preloaded image models | `false` | No |
-| `UPLOAD_MAX_MB` | Maximum upload size for local files (MB) | `200` | No |
-| `SSE_HEARTBEAT_SECONDS` | SSE heartbeat interval for long-running task updates | `10` | No |
+| Variable | Description | Default | Required | Configurable in UI |
+|----------|-------------|---------|----------|--------------------|
+| `OPENAI_API_KEY` | API key (server-side default) | - | No | Yes |
+| `OPENAI_BASE_URL` | Custom OpenAI-compatible endpoint | - | No | Yes |
+| `OPENAI_OPTIMIZE_MODEL` | Model for transcript optimization | - | No | Yes |
+| `OPENAI_SUMMARY_MODEL` | Model for summary generation | - | No | Yes |
+| `OPENAI_TRANSLATION_MODEL` | Model for translation | - | No | Yes |
+| `WHISPER_MODEL_SIZE` | Whisper model size | `base` | No | No |
+| `REPAIR_PRELOADED_HF_CACHE` | Overwrite matching runtime cache files from preloaded image models | `false` | No | No |
+| `UPLOAD_MAX_MB` | Maximum upload size for local files (MB) | `200` | No | No |
+| `SSE_HEARTBEAT_SECONDS` | SSE heartbeat interval for long-running task updates | `10` | No | No |
+
+In the UI, `OPENAI_OPTIMIZE_MODEL`, `OPENAI_SUMMARY_MODEL`, and `OPENAI_TRANSLATION_MODEL` share a single model selector. If you want different models for optimization, summary, and translation, configure them separately in `.env`.
 
 An optional dedicated endpoint `POST /api/process-upload` exists with the same behavior as sending `file` to `/api/process-video`.
 
