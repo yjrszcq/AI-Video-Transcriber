@@ -156,6 +156,15 @@ async def _prepare_whisper_transcription(task_id: str) -> None:
     await broadcast_task_update(task_id, tasks[task_id])
 
 
+async def _publish_ai_warnings(task_id: str, warnings: list) -> None:
+    """把 AI 降级提示写入任务状态并广播。"""
+    if not warnings:
+        return
+    tasks[task_id]["ai_warnings"] = list(warnings)
+    save_tasks(tasks)
+    await broadcast_task_update(task_id, tasks[task_id])
+
+
 async def _run_post_extract_pipeline(
     task_id: str,
     raw_script: str,
@@ -171,6 +180,7 @@ async def _run_post_extract_pipeline(
     """取得 raw_script 后的共用管线：归档、优化、翻译、摘要、广播。"""
     short_id = task_id.replace("-", "")[:6]
     safe_title = _sanitize_title_for_filename(video_title)
+    ai_warnings = []
 
     try:
         raw_md_filename = f"raw_{safe_title}_{short_id}.md"
@@ -190,7 +200,8 @@ async def _run_post_extract_pipeline(
     save_tasks(tasks)
     await broadcast_task_update(task_id, tasks[task_id])
 
-    script = await request_summarizer.optimize_transcript(raw_script)
+    script = await request_summarizer.optimize_transcript(raw_script, warnings=ai_warnings)
+    await _publish_ai_warnings(task_id, ai_warnings)
 
     script_with_title = f"# {video_title}\n\n{script}\n\nsource: {source_ref}\n"
 
@@ -231,8 +242,9 @@ async def _run_post_extract_pipeline(
         await broadcast_task_update(task_id, tasks[task_id])
 
         translation_content = await request_translator.translate_text(
-            script, summary_language, detected_language
+            script, summary_language, detected_language, warnings=ai_warnings
         )
+        await _publish_ai_warnings(task_id, ai_warnings)
         translation_with_title = f"# {video_title}\n\n{translation_content}\n\nsource: {source_ref}\n"
         translation_filename = f"translation_{safe_title}_{short_id}.md"
         translation_path = TEMP_DIR / translation_filename
@@ -251,7 +263,8 @@ async def _run_post_extract_pipeline(
     save_tasks(tasks)
     await broadcast_task_update(task_id, tasks[task_id])
 
-    summary = await request_summarizer.summarize(script, summary_language, video_title)
+    summary = await request_summarizer.summarize(script, summary_language, video_title, warnings=ai_warnings)
+    await _publish_ai_warnings(task_id, ai_warnings)
     summary_with_source = summary + f"\n\nsource: {source_ref}\n"
 
     script_filename = f"transcript_{task_id}.md"
@@ -287,6 +300,8 @@ async def _run_post_extract_pipeline(
         "detected_language": detected_language,
         "summary_language": summary_language,
     }
+    if ai_warnings:
+        task_result["ai_warnings"] = list(ai_warnings)
 
     if translation_content and translation_path:
         task_result.update({

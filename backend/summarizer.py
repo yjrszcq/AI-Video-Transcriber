@@ -10,6 +10,11 @@ logger = logging.getLogger(__name__)
 
 class Summarizer:
     """文本总结器，使用OpenAI API生成多语言摘要"""
+
+    @staticmethod
+    def _add_warning(warnings, code: str):
+        if warnings is not None and code not in warnings:
+            warnings.append(code)
     
     def __init__(self, api_key: str = None, base_url: str = None, model: str = None):
         """
@@ -57,7 +62,7 @@ class Summarizer:
     async def _create_chat_completion(self, **kwargs):
         return await asyncio.to_thread(self.client.chat.completions.create, **kwargs)
     
-    async def optimize_transcript(self, raw_transcript: str) -> str:
+    async def optimize_transcript(self, raw_transcript: str, warnings=None) -> str:
         """
         优化转录文本：修正错别字，按含义分段
         支持长文本自动分块处理
@@ -71,6 +76,7 @@ class Summarizer:
         try:
             if not self.client:
                 logger.warning("OpenAI API不可用，返回原始转录")
+                self._add_warning(warnings, "optimize_fallback")
                 return raw_transcript
 
             # 预处理：仅移除时间戳与元信息，保留全部口语/重复内容
@@ -81,13 +87,16 @@ class Summarizer:
 
             if len(preprocessed) > max_chars_per_chunk:
                 logger.info(f"文本较长({len(preprocessed)} chars)，启用分块优化")
-                return await self._format_long_transcript_in_chunks(preprocessed, detected_lang_code, max_chars_per_chunk)
+                return await self._format_long_transcript_in_chunks(
+                    preprocessed, detected_lang_code, max_chars_per_chunk, warnings=warnings
+                )
             else:
-                return await self._format_single_chunk(preprocessed, detected_lang_code)
+                return await self._format_single_chunk(preprocessed, detected_lang_code, warnings=warnings)
 
         except Exception as e:
             logger.error(f"优化转录文本失败: {str(e)}")
             logger.info("返回原始转录文本")
+            self._add_warning(warnings, "optimize_fallback")
             return raw_transcript
 
     def _estimate_tokens(self, text: str) -> int:
@@ -271,7 +280,7 @@ class Summarizer:
         formatted = re.sub(r"\n+$", "", formatted)
         return formatted
 
-    async def _format_single_chunk(self, chunk_text: str, transcript_language: str = 'zh') -> str:
+    async def _format_single_chunk(self, chunk_text: str, transcript_language: str = 'zh', warnings=None) -> str:
         """单块优化（修正+格式化），遵循4000 tokens 限制。"""
         # 构建与JS版一致的系统/用户提示
         if transcript_language == 'zh':
@@ -329,6 +338,7 @@ class Summarizer:
             return self._ensure_markdown_paragraphs(enforced)
         except Exception as e:
             logger.error(f"单块文本优化失败: {e}")
+            self._add_warning(warnings, "optimize_fallback")
             return self._apply_basic_formatting(chunk_text)
 
     def _smart_split_long_chunk(self, text: str, max_chars_per_chunk: int) -> list:
@@ -434,7 +444,9 @@ class Summarizer:
             paras.append(cur.strip())
         return self._ensure_markdown_paragraphs("\n\n".join(paras))
 
-    async def _format_long_transcript_in_chunks(self, raw_transcript: str, transcript_language: str, max_chars_per_chunk: int) -> str:
+    async def _format_long_transcript_in_chunks(
+        self, raw_transcript: str, transcript_language: str, max_chars_per_chunk: int, warnings=None
+    ) -> str:
         """智能分块+上下文+去重 合成优化文本（JS策略移植）。"""
         import re
         # 先按句子切分，组装不超过max_chars_per_chunk的块
@@ -482,12 +494,13 @@ class Summarizer:
                 marker = f"[上文续：{prev_tail}]" if transcript_language == 'zh' else f"[Context continued: {prev_tail}]"
                 chunk_with_context = marker + "\n\n" + c
             try:
-                oc = await self._format_single_chunk(chunk_with_context, transcript_language)
+                oc = await self._format_single_chunk(chunk_with_context, transcript_language, warnings=warnings)
                 # 移除上下文标记
                 oc = re.sub(r"^\[(上文续|Context continued)：?:?.*?\]\s*", "", oc, flags=re.S)
                 optimized.append(oc)
             except Exception as e:
                 logger.warning(f"第 {i+1} 块优化失败，使用基础格式化: {e}")
+                self._add_warning(warnings, "optimize_fallback")
                 optimized.append(self._apply_basic_formatting(c))
 
         # 邻接块去重
@@ -973,7 +986,7 @@ Core requirements:
         
         return '\n\n'.join(basic_paragraphs)
 
-    async def summarize(self, transcript: str, target_language: str = "zh", video_title: str = None) -> str:
+    async def summarize(self, transcript: str, target_language: str = "zh", video_title: str = None, warnings=None) -> str:
         """
         生成视频转录的摘要
         
@@ -987,6 +1000,7 @@ Core requirements:
         try:
             if not self.client:
                 logger.warning("OpenAI API不可用，生成备用摘要")
+                self._add_warning(warnings, "summary_fallback")
                 return self._generate_fallback_summary(transcript, target_language, video_title)
             
             # 估算转录文本长度，决定是否需要分块摘要
@@ -999,10 +1013,13 @@ Core requirements:
             else:
                 # 长文本分块摘要
                 logger.info(f"文本较长({estimated_tokens} tokens)，启用分块摘要")
-                return await self._summarize_with_chunks(transcript, target_language, video_title, max_summarize_tokens)
+                return await self._summarize_with_chunks(
+                    transcript, target_language, video_title, max_summarize_tokens, warnings=warnings
+                )
             
         except Exception as e:
             logger.error(f"生成摘要失败: {str(e)}")
+            self._add_warning(warnings, "summary_fallback")
             return self._generate_fallback_summary(transcript, target_language, video_title)
 
     async def _summarize_single_text(self, transcript: str, target_language: str, video_title: str = None) -> str:
@@ -1044,7 +1061,7 @@ Output ONLY the summary body in {language_name}."""
 
         return self._format_summary_with_meta(summary, target_language, video_title)
 
-    async def _summarize_with_chunks(self, transcript: str, target_language: str, video_title: str, max_tokens: int) -> str:
+    async def _summarize_with_chunks(self, transcript: str, target_language: str, video_title: str, max_tokens: int, warnings=None) -> str:
         """
         分块摘要长文本
         """
@@ -1091,6 +1108,7 @@ Output content only, no headings like "Summary:"."""
                 
             except Exception as e:
                 logger.error(f"摘要第 {i+1} 块失败: {e}")
+                self._add_warning(warnings, "summary_fallback")
                 # 失败时生成简单摘要
                 simple_summary = f"第{i+1}部分内容概述：" + chunk[:200] + "..."
                 chunk_summaries.append(simple_summary)

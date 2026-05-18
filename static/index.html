@@ -507,6 +507,32 @@
     }
     .btn-dl:hover { border-color: var(--accent-dim); color: var(--accent-text); }
 
+    .ai-warning {
+      display: none;
+      margin: 12px 18px 0;
+      padding: 10px 12px;
+      border: 1px solid rgba(192,120,48,.35);
+      border-radius: 8px;
+      background: rgba(192,120,48,.08);
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.5;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .ai-warning.show { display: flex; }
+    .ai-warning i {
+      color: var(--accent-text);
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .ai-warning strong {
+      display: block;
+      color: var(--accent-text);
+      font-size: 12.5px;
+      margin-bottom: 2px;
+    }
+
     .tab-bar {
       display: flex;
       border-bottom: 1px solid var(--border);
@@ -763,6 +789,13 @@
           <span data-i18n="download_summary">Summary</span>
         </button>
       </div>
+      <div class="ai-warning" id="aiWarning">
+        <i class="fas fa-exclamation-circle"></i>
+        <div>
+          <strong data-i18n="ai_warning_title">AI fallback used</strong>
+          <span id="aiWarningText"></span>
+        </div>
+      </div>
 
       <div class="tab-bar">
         <button class="tab-btn active" data-tab="script">
@@ -794,6 +827,6 @@
   </div>
 </main>
 
-<script src="/static/app.js?v=20260518m"></script>
+<script src="/static/app.js?v=20260518n"></script>
 </body>
 </html>

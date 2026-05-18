@@ -14,6 +14,11 @@ logger = logging.getLogger(__name__)
 class Translator:
     """文本翻译器；支持环境变量或请求内传入的 API Key / Base URL（与 Summarizer 一致）。"""
 
+    @staticmethod
+    def _add_warning(warnings, code: str):
+        if warnings is not None and code not in warnings:
+            warnings.append(code)
+
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -188,7 +193,7 @@ class Translator:
 
         return final_chunks
 
-    async def translate_text(self, text: str, target_language: str, source_language: Optional[str] = None) -> str:
+    async def translate_text(self, text: str, target_language: str, source_language: Optional[str] = None, warnings=None) -> str:
         """
         翻译文本到目标语言
         
@@ -203,6 +208,7 @@ class Translator:
         try:
             if not self.client:
                 logger.warning("OpenAI API不可用，无法翻译")
+                self._add_warning(warnings, "translation_fallback")
                 return text
             
             # 检测源语言
@@ -223,15 +229,16 @@ class Translator:
             # 估算文本长度，决定是否需要分块
             if len(text) > 3000:
                 logger.info(f"文本较长({len(text)} chars)，启用分块翻译")
-                return await self._translate_with_chunks(text, target_lang_name, source_lang_name)
+                return await self._translate_with_chunks(text, target_lang_name, source_lang_name, warnings=warnings)
             else:
-                return await self._translate_single_text(text, target_lang_name, source_lang_name)
+                return await self._translate_single_text(text, target_lang_name, source_lang_name, warnings=warnings)
                 
         except Exception as e:
             logger.error(f"翻译失败: {str(e)}")
+            self._add_warning(warnings, "translation_fallback")
             return text
     
-    async def _translate_single_text(self, text: str, target_lang_name: str, source_lang_name: str) -> str:
+    async def _translate_single_text(self, text: str, target_lang_name: str, source_lang_name: str, warnings=None) -> str:
         """翻译单个文本块"""
         system_prompt = f"""你是专业翻译专家。请将{source_lang_name}文本准确翻译为{target_lang_name}。
 
@@ -263,9 +270,10 @@ class Translator:
             return strip_llm_artifacts(response.choices[0].message.content or "")
         except Exception as e:
             logger.error(f"单文本翻译失败: {e}")
+            self._add_warning(warnings, "translation_fallback")
             return text
     
-    async def _translate_with_chunks(self, text: str, target_lang_name: str, source_lang_name: str) -> str:
+    async def _translate_with_chunks(self, text: str, target_lang_name: str, source_lang_name: str, warnings=None) -> str:
         """分块翻译长文本"""
         chunks = self._smart_chunk_text(text, max_chars_per_chunk=4000)
         logger.info(f"分割为 {len(chunks)} 个块进行翻译")
@@ -308,6 +316,7 @@ class Translator:
                 translated_chunks.append(strip_llm_artifacts(translated_chunk))
             except Exception as e:
                 logger.error(f"翻译第 {i+1} 块失败: {e}")
+                self._add_warning(warnings, "translation_fallback")
                 # 失败时保留原文
                 translated_chunks.append(chunk)
         

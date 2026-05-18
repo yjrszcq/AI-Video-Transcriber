@@ -18,6 +18,7 @@ class VideoTranscriber {
     this.statusPollTimeoutMs = 10000;
     this.taskFinished = false;
     this.sseRetryCount = 0;
+    this.currentAiWarnings = [];
 
     /* Smart progress simulation */
     this.sp = {
@@ -85,6 +86,11 @@ class VideoTranscriber {
         error_unknown_download_type:'Unknown download type',
         error_sync_failed:       'Sync failed: ',
         error_sync_timeout:      'Sync timed out',
+        ai_warning_title:        'AI fallback used',
+        ai_warning_optimize_fallback: 'Transcript optimization failed; the original transcript was used.',
+        ai_warning_translation_fallback: 'Translation failed; untranslated text was kept.',
+        ai_warning_summary_fallback: 'Summary generation failed; a basic fallback summary was generated.',
+        ai_warning_unknown:      'Some AI features were unavailable; the task continued with fallback output.',
         error_upload_type:       'Unsupported file type',
         error_upload_empty:      'File is empty',
         error_upload_size:       (mb) => `File exceeds ${mb} MB limit`,
@@ -147,6 +153,11 @@ class VideoTranscriber {
         error_unknown_download_type:'未知的下载类型',
         error_sync_failed:       '同步失败：',
         error_sync_timeout:      '同步超时',
+        ai_warning_title:        'AI 功能已降级',
+        ai_warning_optimize_fallback: '转录优化失败，已使用原始转录文本。',
+        ai_warning_translation_fallback: '翻译失败，已保留未翻译文本。',
+        ai_warning_summary_fallback: '摘要生成失败，已生成基础备用摘要。',
+        ai_warning_unknown:      '部分 AI 功能不可用，任务已使用降级结果继续完成。',
         error_upload_type:       '不支持的文件类型',
         error_upload_empty:      '文件为空',
         error_upload_size:       (mb) => `文件超过 ${mb} MB 限制`,
@@ -180,6 +191,8 @@ class VideoTranscriber {
     this.scriptContent      = document.getElementById('scriptContent');
     this.summaryContent     = document.getElementById('summaryContent');
     this.translationContent = document.getElementById('translationContent');
+    this.aiWarning          = document.getElementById('aiWarning');
+    this.aiWarningText      = document.getElementById('aiWarningText');
     this.dlScript           = document.getElementById('downloadScript');
     this.dlTranslation      = document.getElementById('downloadTranslation');
     this.dlSummary          = document.getElementById('downloadSummary');
@@ -315,6 +328,7 @@ class VideoTranscriber {
       const v = this.t(el.dataset.i18nAriaLabel, null);
       if (typeof v === 'string') el.setAttribute('aria-label', v);
     });
+    this._renderAiWarnings(this.currentAiWarnings);
   }
 
   /* ── Settings persistence ─────────────────────────────── */
@@ -566,7 +580,15 @@ class VideoTranscriber {
     if (task.status === 'completed') {
       this.taskFinished = true;
       this._stopSP(); this._stopSSE(); this._stopStatusPolling(); this._setLoading(false); this._hideProgress();
-      this._showResults(task.script, task.summary, task.video_title, task.translation, task.detected_language, task.summary_language);
+      this._showResults(
+        task.script,
+        task.summary,
+        task.video_title,
+        task.translation,
+        task.detected_language,
+        task.summary_language,
+        task.ai_warnings || []
+      );
     } else if (task.status === 'error') {
       this.taskFinished = true;
       this._stopSP(); this._stopSSE(); this._stopStatusPolling(); this._setLoading(false); this._hideProgress();
@@ -864,9 +886,10 @@ class VideoTranscriber {
     return c;
   }
 
-  _showResults(script, summary, videoTitle, translation, detectedLang, summaryLang) {
+  _showResults(script, summary, videoTitle, translation, detectedLang, summaryLang, aiWarnings = []) {
     this.scriptContent.innerHTML  = script    ? marked.parse(script)      : '';
     this.summaryContent.innerHTML = summary   ? marked.parse(summary)     : '';
+    this._renderAiWarnings(aiWarnings);
 
     const d = this._normLangTab(detectedLang);
     const s = this._normLangTab(summaryLang);
@@ -883,6 +906,23 @@ class VideoTranscriber {
     this.resultsPanel.classList.add('show');
     this._switchTab('script');
     this.resultsPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  _renderAiWarnings(warnings = []) {
+    this.currentAiWarnings = Array.isArray(warnings) ? warnings : [];
+    if (!this.aiWarning || !this.aiWarningText) return;
+    if (!this.currentAiWarnings.length) {
+      this.aiWarning.classList.remove('show');
+      this.aiWarningText.textContent = '';
+      return;
+    }
+
+    const labels = this.currentAiWarnings.map((code) => {
+      const key = `ai_warning_${code}`;
+      return this.t(key, this.t('ai_warning_unknown'));
+    });
+    this.aiWarningText.textContent = [...new Set(labels)].join(' ');
+    this.aiWarning.classList.add('show');
   }
 
   _hideResults() { this.resultsPanel.classList.remove('show'); }
