@@ -63,7 +63,7 @@ docker build -t ai-video-transcriber .
 docker run -p 8000:8000 --env-file .env ai-video-transcriber
 ```
 
-Docker Compose stores runtime Whisper / Hugging Face cache files in `./models/huggingface`. Images that preload Whisper models keep those files in `/opt/preloaded-hf-cache`; on first startup, the entrypoint copies them into the mounted runtime cache only when that cache is empty.
+Docker Compose stores runtime Whisper / Hugging Face cache files in `./models/huggingface`. Images that preload Whisper models keep those files in `/opt/preloaded-hf-cache`; on startup, the entrypoint merges missing preloaded cache files into the mounted runtime cache without overwriting existing files.
 
 The image uses **Python 3.12** (Debian Bookworm), upgrades `pip`/`setuptools`/`wheel`, then installs from `requirements.txt` — same version constraints as a fresh local venv on a current Python.
 
